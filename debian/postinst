@@ -6,13 +6,15 @@ case "$1" in
         # Register API route in PVE::API2::Nodes
         NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
         if [ -f "$NODES_PM" ]; then
-            cp "$NODES_PM" "${NODES_PM}.smartraid-bak"
+            # Work on a temp copy — original is never modified until verified
+            TEMP_PM=$(mktemp /tmp/nodes_pm_XXXXXX.pm)
+            cp "$NODES_PM" "$TEMP_PM"
 
-            sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-            sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
+            sed -i '/use PVE::API2::SmartRaidMon;/d' "$TEMP_PM"
+            sed -i '/require PVE::API2::SmartRaidMon;/d' "$TEMP_PM"
 
             # Remove old SmartRaidMon blocks (paren-depth aware)
-            perl - "$NODES_PM" <<'CLEANUP_PERL'
+            perl - "$TEMP_PM" <<'CLEANUP_PERL'
                 use strict; use warnings;
                 my $file = shift;
                 open my $fh, "<", $file or die "Cannot read $file: $!\n";
@@ -41,7 +43,7 @@ case "$1" in
 CLEANUP_PERL
 
             # Insert after Disks block (paren-depth aware)
-            perl - "$NODES_PM" <<'INSERT_PERL'
+            perl - "$TEMP_PM" <<'INSERT_PERL'
                 use strict; use warnings;
                 my $file = shift;
                 open my $fh, "<", $file or die "Cannot read $file: $!\n";
@@ -78,16 +80,14 @@ CLEANUP_PERL
                 close $ofh;
 INSERT_PERL
 
-            if ! grep -q "use PVE::API2::SmartRaidMon;" "$NODES_PM"; then
-                sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+            if ! grep -q "use PVE::API2::SmartRaidMon;" "$TEMP_PM"; then
+                sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$TEMP_PM"
             fi
 
-            if perl -c "$NODES_PM" 2>/dev/null; then
-                rm -f "${NODES_PM}.smartraid-bak"
-            else
-                cp "${NODES_PM}.smartraid-bak" "$NODES_PM"
-                rm -f "${NODES_PM}.smartraid-bak"
+            if perl -c "$TEMP_PM" 2>/dev/null; then
+                cp "$TEMP_PM" "$NODES_PM"
             fi
+            rm -f "$TEMP_PM"
         fi
 
         # Patch the PVE manager index to include our JS (idempotent)

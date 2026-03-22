@@ -49,16 +49,43 @@ install -m 0644 "$SCRIPT_DIR/src/www/SmartRaidMon.js" \
 echo "[4/6] Registering API endpoint in PVE::API2::Nodes..."
 NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
 if [ -f "$NODES_PM" ]; then
-    # Back up original before any changes
-    cp "$NODES_PM" "${NODES_PM}.smartraid-bak"
+    # Pre-check: verify SmartRaidMon.pm compiles on its own
+    MOD_CHECK=$(perl -c /usr/share/perl5/PVE/API2/SmartRaidMon.pm 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "ERROR: SmartRaidMon.pm failed to compile:"
+        echo "       $MOD_CHECK"
+        exit 1
+    fi
+
+    # Pre-check: verify original Nodes.pm is healthy before we touch it
+    ORIG_CHECK=$(perl -c "$NODES_PM" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Original Nodes.pm is already broken (possibly from a prior install):"
+        echo "       $ORIG_CHECK"
+        echo ""
+        echo "       To restore Nodes.pm from the distribution package, run:"
+        PKG=$(dpkg -S "$NODES_PM" 2>/dev/null | head -1 | cut -d: -f1)
+        if [ -n "$PKG" ]; then
+            echo "         apt-get install --reinstall $PKG"
+        else
+            echo "         apt-get install --reinstall pve-manager"
+        fi
+        echo "       Then run install.sh again."
+        exit 1
+    fi
+
+    # Work on a temp copy — the original is never modified until verified
+    TEMP_PM=$(mktemp /tmp/nodes_pm_XXXXXX.pm)
+    trap 'rm -f "$TEMP_PM"' EXIT
+    cp "$NODES_PM" "$TEMP_PM"
 
     # Step A: Remove any previous SmartRaidMon use/require lines
-    sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-    sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
+    sed -i '/use PVE::API2::SmartRaidMon;/d' "$TEMP_PM"
+    sed -i '/require PVE::API2::SmartRaidMon;/d' "$TEMP_PM"
 
     # Step B: Remove any old register_method blocks for SmartRaidMon
     #         Uses paren-depth tracking to handle nested structures properly
-    perl - "$NODES_PM" <<'CLEANUP_PERL'
+    perl - "$TEMP_PM" <<'CLEANUP_PERL'
         use strict; use warnings;
         my $file = shift;
         open my $fh, "<", $file or die "Cannot read $file: $!\n";
@@ -81,7 +108,6 @@ if [ -f "$NODES_PM" ]; then
                 }
                 my $block_text = join('', @block);
                 if ($block_text =~ /SmartRaidMon/) {
-                    # Skip trailing blank lines
                     while ($i <= $#lines && $lines[$i] =~ /^\s*$/) { $i++; }
                     next;
                 }
@@ -97,7 +123,7 @@ CLEANUP_PERL
 
     # Step C: Insert SmartRaidMon registration after the Disks block,
     #         using paren-depth tracking to find the exact block end.
-    perl - "$NODES_PM" <<'INSERT_PERL'
+    perl - "$TEMP_PM" <<'INSERT_PERL'
         use strict; use warnings;
         my $file = shift;
         open my $fh, "<", $file or die "Cannot read $file: $!\n";
@@ -106,7 +132,6 @@ CLEANUP_PERL
         my $insert_after = -1;
         for my $i (0 .. $#lines) {
             if ($lines[$i] =~ /subclass\s*=>\s*["']PVE::API2::Disks["']/) {
-                # Walk backwards to find the register_method opening
                 my $block_start = $i;
                 for (my $k = $i; $k >= 0; $k--) {
                     if ($lines[$k] =~ /__PACKAGE__->register_method\s*\(/) {
@@ -114,7 +139,6 @@ CLEANUP_PERL
                         last;
                     }
                 }
-                # Track paren depth from the opening to find the end
                 my $depth = 0;
                 for my $j ($block_start .. $#lines) {
                     for my $c (split //, $lines[$j]) {
@@ -132,6 +156,10 @@ CLEANUP_PERL
         die "Could not find PVE::API2::Disks registration in $file\n"
             if $insert_after < 0;
 
+        # Show what we're inserting after (for debugging)
+        warn "Inserting SmartRaidMon registration after line " . ($insert_after + 1) .
+             ": " . $lines[$insert_after] if -t STDERR;
+
         open my $ofh, ">", $file or die "Cannot write $file: $!\n";
         for my $i (0 .. $#lines) {
             print $ofh $lines[$i];
@@ -147,22 +175,28 @@ CLEANUP_PERL
 INSERT_PERL
 
     # Step D: Add 'use' statement after 'use PVE::API2::Disks;'
-    if ! grep -q "use PVE::API2::SmartRaidMon;" "$NODES_PM"; then
-        sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+    if ! grep -q "use PVE::API2::SmartRaidMon;" "$TEMP_PM"; then
+        sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$TEMP_PM"
     fi
 
-    # Verify it compiles correctly
-    if perl -c "$NODES_PM" 2>/dev/null; then
+    # Verify the modified temp file compiles (original is still untouched)
+    COMPILE_OUT=$(perl -c "$TEMP_PM" 2>&1)
+    if [ $? -eq 0 ]; then
+        cp "$TEMP_PM" "$NODES_PM"
         echo "       API route registered and verified."
-        rm -f "${NODES_PM}.smartraid-bak"
     else
-        echo "ERROR: Nodes.pm failed syntax check after patching!"
-        echo "       Restoring backup..."
-        cp "${NODES_PM}.smartraid-bak" "$NODES_PM"
-        rm -f "${NODES_PM}.smartraid-bak"
-        echo "       Restored original. Please report this issue."
+        echo "ERROR: Modified Nodes.pm failed syntax check!"
+        echo "       The original file was NOT modified."
+        echo ""
+        echo "  Compile error:"
+        echo "  $COMPILE_OUT"
+        echo ""
+        echo "  Changes that would have been applied:"
+        diff "$NODES_PM" "$TEMP_PM" || true
         exit 1
     fi
+    rm -f "$TEMP_PM"
+    trap - EXIT
 else
     echo "WARNING: $NODES_PM not found — API will not work."
 fi

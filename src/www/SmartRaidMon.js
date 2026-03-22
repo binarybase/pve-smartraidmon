@@ -298,7 +298,8 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     // ssacli fields
                     'bay', 'port', 'box', 'array', 'status', 'interface_type',
                     'drive_type', 'controller_model', 'controller_slot',
-                    'physicaldrive', 'logical_volumes',
+                    'physicaldrive', 'logical_volumes', 'last_failure_reason',
+                    'max_temperature', 'wwid',
                 ],
                 data: [],
             },
@@ -327,6 +328,7 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     dataIndex: 'cciss_port',
                     width: 55,
                     renderer: function (v) {
+                        if (v === -1 || v === '-1') return '<span style="color:gray;">N/A</span>';
                         return 'cciss,' + Ext.htmlEncode(String(v));
                     },
                 },
@@ -356,10 +358,14 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                 {
                     text: 'Status',
                     dataIndex: 'status',
-                    width: 70,
-                    renderer: function (v) {
+                    width: 100,
+                    renderer: function (v, meta, rec) {
                         if (!v) return '-';
                         var s = Ext.htmlEncode(v);
+                        var reason = rec.get('last_failure_reason');
+                        if (reason) {
+                            meta.tdAttr = 'data-qtip="' + Ext.htmlEncode(reason) + '"';
+                        }
                         if (/^OK$/i.test(v)) {
                             return '<span style="color:green;">' + s + '</span>';
                         }
@@ -401,15 +407,34 @@ Ext.define('PVE.SmartRaidMon.Panel', {
             emptyText: 'No drives detected behind HP Smart Array controllers.',
             listeners: {
                 itemdblclick: function (view, record) {
+                    var port = record.get('cciss_port');
+                    if (port === -1 || port === '-1') {
+                        // Drive not reachable via smartctl (e.g. failed) — show info from ssacli
+                        var reason = record.get('last_failure_reason');
+                        var msg = 'This drive is not reachable via smartctl.';
+                        if (record.get('status')) {
+                            msg += '<br>Status: <b>' + Ext.htmlEncode(record.get('status')) + '</b>';
+                        }
+                        if (reason) {
+                            msg += '<br>Reason: ' + Ext.htmlEncode(reason);
+                        }
+                        Ext.Msg.show({
+                            title: 'Drive ' + Ext.htmlEncode(record.get('physicaldrive') || record.get('serial') || 'Unknown'),
+                            message: msg,
+                            icon: Ext.Msg.WARNING,
+                            buttons: Ext.Msg.OK,
+                        });
+                        return;
+                    }
                     Ext.create('PVE.SmartRaidMon.DriveDetailWindow', {
                         pveNode: nodename,
                         device: record.get('device'),
-                        ccissPort: record.get('cciss_port'),
+                        ccissPort: port,
                         title:
                             'S.M.A.R.T. Details — /dev/' +
                             record.get('device') +
                             ' cciss,' +
-                            record.get('cciss_port'),
+                            port,
                         autoShow: true,
                     });
                 },
@@ -488,7 +513,7 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     Ext.Array.each(data.drives, function (d) {
                         if (/PASSED|OK/i.test(d.health)) {
                             healthy++;
-                        } else if (/FAIL/i.test(d.health)) {
+                        } else if (/FAIL/i.test(d.health) || /FAIL/i.test(d.status)) {
                             failed++;
                         } else {
                             unknown++;

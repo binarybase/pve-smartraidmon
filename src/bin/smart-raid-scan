@@ -103,6 +103,7 @@ sub ssacli_get_drives {
             elsif ($key eq 'PHY Transfer Rate')    { $current_drive->{phy_transfer_rate} = $val; }
             elsif ($key eq 'Drive exposed to OS')  { $current_drive->{exposed_to_os} = $val; }
             elsif ($key eq 'WWID')                 { $current_drive->{wwid} = $val; }
+            elsif ($key eq 'Last Failure Reason')  { $current_drive->{last_failure_reason} = $val; }
         }
     }
     push @drives, $current_drive if $current_drive;
@@ -576,6 +577,9 @@ sub merge_ssacli_info {
     my $ssa = $ssa_info->{$drive->{serial}};
     return unless $ssa;
 
+    # Mark as matched so we know smartctl found it
+    $ssa->{_matched} = 1;
+
     # Add ssacli-exclusive fields
     $drive->{bay}              = $ssa->{bay}              if $ssa->{bay};
     $drive->{port}             = $ssa->{port}             if $ssa->{port};
@@ -591,6 +595,50 @@ sub merge_ssacli_info {
     $drive->{max_temperature}  = $ssa->{max_temperature}  if $ssa->{max_temperature};
     # Use ssacli temperature if smartctl didn't provide one
     $drive->{temperature}    //= $ssa->{ssa_temperature}  if $ssa->{ssa_temperature};
+}
+
+# ---------------------------------------------------------------------------
+# Build drive entries for ssacli-only drives (e.g. failed drives that
+# smartctl cannot reach). Returns an array ref of synthetic drive hashes.
+# ---------------------------------------------------------------------------
+sub ssacli_only_drives {
+    my ($ssa_data, $logical_volumes) = @_;
+    return [] unless $ssa_data && $ssa_data->{drive_by_serial};
+
+    my @extra;
+    for my $serial (sort keys %{$ssa_data->{drive_by_serial}}) {
+        my $ssa = $ssa_data->{drive_by_serial}{$serial};
+        next if $ssa->{_matched};  # already merged with a smartctl drive
+
+        my %d = (
+            device           => $logical_volumes->[0] // 'unknown',
+            cciss_port       => -1,     # not reachable via smartctl
+            serial           => $serial,
+            health           => ($ssa->{status} && $ssa->{status} ne 'OK') ? 'FAILED' : 'UNKNOWN',
+            status           => $ssa->{status}           // 'Unknown',
+            model            => $ssa->{model}            // '',
+            bay              => $ssa->{bay}              // '',
+            port             => $ssa->{port}             // '',
+            box              => $ssa->{box}              // '',
+            array            => $ssa->{array}            // '',
+            drive_type       => $ssa->{drive_type}       // '',
+            interface_type   => $ssa->{interface_type}   // '',
+            physicaldrive    => $ssa->{physicaldrive}    // '',
+            controller_model => $ssa->{controller_model} // '',
+            firmware         => $ssa->{firmware}         // '',
+            logical_volumes  => $logical_volumes,
+        );
+        $d{controller_slot}  = $ssa->{controller_slot} if defined $ssa->{controller_slot};
+        $d{capacity}         = $ssa->{size}            if $ssa->{size};
+        $d{wwid}             = $ssa->{wwid}            if $ssa->{wwid};
+        $d{temperature}      = $ssa->{ssa_temperature} if $ssa->{ssa_temperature};
+        $d{max_temperature}  = $ssa->{max_temperature} if $ssa->{max_temperature};
+        $d{rotation_rate}    = "$ssa->{rotational_speed} rpm" if $ssa->{rotational_speed};
+        $d{last_failure_reason} = $ssa->{last_failure_reason} if $ssa->{last_failure_reason};
+
+        push @extra, \%d;
+    }
+    return \@extra;
 }
 
 # ---------------------------------------------------------------------------
@@ -628,6 +676,7 @@ elsif ($mode eq 'drives') {
         ? $ssa_data->{pd_count} + 2
         : undef;
     my @all_drives;
+    my @all_vols;
     for my $host (sort keys %$hosts) {
         my $h = $hosts->{$host};
         my $drives = probe_drives($h->{probe_dev}, $max_ports);
@@ -636,6 +685,12 @@ elsif ($mode eq 'drives') {
             merge_ssacli_info($d, $ssa_data->{drive_by_serial}) if $ssa_data;
             push @all_drives, $d;
         }
+        push @all_vols, @{$h->{devices}};
+    }
+    # Append drives only visible to ssacli (e.g. failed drives)
+    if ($ssa_data) {
+        my $extra = ssacli_only_drives($ssa_data, \@all_vols);
+        push @all_drives, @$extra;
     }
     print encode_json(\@all_drives);
 }
@@ -669,6 +724,7 @@ elsif ($mode eq 'summary') {
         ? $ssa_data->{pd_count} + 2
         : undef;
     my @all_drives;
+    my @all_vols;
     for my $host (sort keys %$hosts) {
         my $h = $hosts->{$host};
         my $drives = probe_drives($h->{probe_dev}, $max_ports);
@@ -677,6 +733,12 @@ elsif ($mode eq 'summary') {
             merge_ssacli_info($d, $ssa_data->{drive_by_serial}) if $ssa_data;
             push @all_drives, $d;
         }
+        push @all_vols, @{$h->{devices}};
+    }
+    # Append drives only visible to ssacli (e.g. failed drives)
+    if ($ssa_data) {
+        my $extra = ssacli_only_drives($ssa_data, \@all_vols);
+        push @all_drives, @$extra;
     }
 
     my %result = (

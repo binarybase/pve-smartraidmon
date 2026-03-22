@@ -169,6 +169,7 @@ __PACKAGE__->register_method({
                 controller_model => { type => 'string', optional => 1 },
                 controller_slot  => { type => 'integer', optional => 1 },
                 physicaldrive    => { type => 'string', optional => 1 },
+                last_failure_reason => { type => 'string', optional => 1 },
             },
         },
     },

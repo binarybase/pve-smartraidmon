@@ -174,9 +174,12 @@ Ext.define('PVE.SmartRaidMon.DriveDetailWindow', {
 
         Proxmox.Utils.API2Request({
             url: '/nodes/' + encodeURIComponent(node) +
-                 '/smartraidmon/drives/' + encodeURIComponent(device) +
-                 '/' + encodeURIComponent(port),
+                 '/smartraidmon/drive-detail',
             method: 'GET',
+            params: {
+                device: device,
+                port: port,
+            },
             failure: function (response) {
                 Ext.Msg.alert(
                     'Error',

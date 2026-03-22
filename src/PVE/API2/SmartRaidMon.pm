@@ -55,6 +55,7 @@ __PACKAGE__->register_method({
         return [
             { subdir => 'controllers' },
             { subdir => 'drives' },
+            { subdir => 'drive-detail' },
             { subdir => 'summary' },
         ];
     },
@@ -166,7 +167,7 @@ __PACKAGE__->register_method({
 
 __PACKAGE__->register_method({
     name => 'drive_detail',
-    path => 'drives/{device}/{port}',
+    path => 'drive-detail',
     method => 'GET',
     description => 'Get full S.M.A.R.T. details for a specific drive behind an HP Smart Array controller.',
     protected => 1,

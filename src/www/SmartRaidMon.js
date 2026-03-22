@@ -461,64 +461,35 @@ Ext.define('PVE.SmartRaidMon.Panel', {
 });
 
 /* ========================================================================
- * 3. Register with Proxmox VE navigation tree
+ * 3. Register under Disks section in PVE 8.x node navigation tree
+ *
+ * PVE.node.Config uses PVE.panel.Config which builds a tree navigation.
+ * The "Disks" parent node has itemId 'storage'. Sub-items nested under
+ * it use groups: ['storage']. We override PVE.node.Config, call
+ * callParent() first (so the tree is built), then insertNodes() to
+ * append our panel under "Disks".
  * ======================================================================== */
 
-Ext.define('PVE.SmartRaidMon.Init', {
-    override: 'PVE.Utils',
+Ext.define('PVE.node.Config.SmartRaidMon', {
+    override: 'PVE.node.Config',
 
-    constructor: function () {
-        this.callParent();
+    initComponent: function () {
+        var me = this;
 
-        // Register our panel in the node's resource tree
-        // This runs once when the JS is loaded
-        PVE.SmartRaidMon.Init.registerNavigation();
-    },
+        // Let PVE build the full node config tree first
+        me.callParent();
 
-    statics: {
-        registerNavigation: function () {
-            // Wait until PVE.Utils is fully available
-            Ext.onReady(function () {
-                // Check if Proxmox navigation API is available
-                if (
-                    typeof PVE !== 'undefined' &&
-                    PVE.Utils &&
-                    PVE.Utils.nodeMenu
-                ) {
-                    // PVE 8.x style: add to node resource types
-                    PVE.Utils.nodeMenu.push({
-                        text: 'Smart Array Monitor',
-                        iconCls: 'fa fa-hdd-o',
-                        xtype: 'pveSmartRaidMonPanel',
-                        itemId: 'smartraidmon',
-                    });
-                }
-            });
-        },
+        var nodename = me.pveSelNode.data.node;
+
+        // Insert our panel under the "Disks" section (itemId: 'storage')
+        me.insertNodes([{
+            xtype: 'pveSmartRaidMonPanel',
+            title: 'Smart Array',
+            iconCls: 'fa fa-hdd-o',
+            itemId: 'smartraidmon',
+            groups: ['storage'],
+            nodename: nodename,
+            pveSelNode: me.pveSelNode,
+        }]);
     },
 });
-
-// For PVE 8.x: Register as a node sub-tab via the component registry
-// This is the standard PVE 8 approach for adding custom panels
-(function () {
-    // Ensure our panel type is registered for the node view
-    Ext.onReady(function () {
-        // Method 1: Override PVE.node.Config to inject our tab
-        if (Ext.ClassManager.get('PVE.node.Config')) {
-            Ext.override(PVE.node.Config, {
-                initComponent: function () {
-                    this.callParent();
-
-                    var me = this;
-                    me.insert(me.items.length, {
-                        xtype: 'pveSmartRaidMonPanel',
-                        title: 'Smart Array Monitor',
-                        iconCls: 'fa fa-hdd-o',
-                        itemId: 'smartraidmon',
-                        pveSelNode: me.pveSelNode,
-                    });
-                },
-            });
-        }
-    });
-})();

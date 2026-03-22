@@ -254,7 +254,7 @@ Ext.define('PVE.SmartRaidMon.Panel', {
             collapsible: true,
             scrollable: true,
             store: {
-                fields: ['device', 'model', 'driver'],
+                fields: ['device', 'model', 'driver', 'controller_model', 'controller_slot'],
                 data: [],
             },
             columns: [
@@ -266,7 +266,20 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                         return '<b>/dev/' + Ext.htmlEncode(v) + '</b>';
                     },
                 },
-                { text: 'Model', dataIndex: 'model', flex: 1, renderer: Ext.htmlEncode },
+                {
+                    text: 'Controller',
+                    dataIndex: 'controller_model',
+                    flex: 1,
+                    renderer: function (v, meta, rec) {
+                        var model = v || rec.get('model') || '';
+                        var slot = rec.get('controller_slot');
+                        var display = Ext.htmlEncode(model);
+                        if (slot !== undefined && slot !== null) {
+                            display += ' (Slot ' + Ext.htmlEncode(String(slot)) + ')';
+                        }
+                        return display;
+                    },
+                },
                 { text: 'Driver', dataIndex: 'driver', width: 100, renderer: Ext.htmlEncode },
             ],
             emptyText: 'No HP Smart Array controllers detected.',
@@ -275,49 +288,61 @@ Ext.define('PVE.SmartRaidMon.Panel', {
         // Drives grid
         me.driveGrid = Ext.create('Ext.grid.Panel', {
             region: 'center',
-            title: 'Drives (S.M.A.R.T. Overview)',
+            title: 'Physical Drives (S.M.A.R.T. Overview)',
             scrollable: true,
             store: {
                 fields: [
-                    'device',
-                    'cciss_port',
-                    'model',
-                    'serial',
-                    'capacity',
-                    'firmware',
-                    'health',
-                    'temperature',
-                    'power_on_hours',
-                    'reallocated_sectors',
-                    'rotation_rate',
+                    'device', 'cciss_port', 'model', 'serial', 'capacity',
+                    'firmware', 'health', 'temperature', 'power_on_hours',
+                    'reallocated_sectors', 'grown_defect_list', 'rotation_rate',
+                    // ssacli fields
+                    'bay', 'port', 'box', 'array', 'status', 'interface_type',
+                    'drive_type', 'controller_model', 'controller_slot',
+                    'physicaldrive', 'logical_volumes',
                 ],
                 data: [],
             },
             columns: [
                 {
-                    text: 'Device',
-                    dataIndex: 'device',
-                    width: 80,
-                    renderer: function (v) {
-                        return '<b>/dev/' + Ext.htmlEncode(v) + '</b>';
-                    },
+                    text: 'Location',
+                    dataIndex: 'physicaldrive',
+                    width: 100,
+                    hidden: true,  // shown when ssacli data available
+                    renderer: Ext.htmlEncode,
+                },
+                {
+                    text: 'Array',
+                    dataIndex: 'array',
+                    width: 55,
+                    renderer: Ext.htmlEncode,
+                },
+                {
+                    text: 'Bay',
+                    dataIndex: 'bay',
+                    width: 45,
+                    renderer: Ext.htmlEncode,
                 },
                 {
                     text: 'Port',
                     dataIndex: 'cciss_port',
-                    width: 50,
+                    width: 55,
                     renderer: function (v) {
                         return 'cciss,' + Ext.htmlEncode(String(v));
                     },
                 },
                 { text: 'Model', dataIndex: 'model', width: 180, renderer: Ext.htmlEncode },
-                { text: 'Serial', dataIndex: 'serial', width: 150, renderer: Ext.htmlEncode },
-                { text: 'Capacity', dataIndex: 'capacity', width: 180, renderer: Ext.htmlEncode },
-                { text: 'RPM', dataIndex: 'rotation_rate', width: 80, renderer: Ext.htmlEncode },
+                { text: 'Serial', dataIndex: 'serial', width: 130, renderer: Ext.htmlEncode },
+                { text: 'Capacity', dataIndex: 'capacity', width: 150, renderer: Ext.htmlEncode },
+                {
+                    text: 'Interface',
+                    dataIndex: 'interface_type',
+                    width: 70,
+                    renderer: Ext.htmlEncode,
+                },
                 {
                     text: 'Health',
                     dataIndex: 'health',
-                    width: 110,
+                    width: 80,
                     renderer: function (v) {
                         var s = Ext.htmlEncode(v || 'UNKNOWN');
                         if (/PASSED|OK/i.test(v)) {
@@ -328,11 +353,24 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                         return '<span style="color:orange;">' + s + '</span>';
                     },
                 },
-                { text: 'Temp', dataIndex: 'temperature', width: 70, renderer: Ext.htmlEncode },
+                {
+                    text: 'Status',
+                    dataIndex: 'status',
+                    width: 70,
+                    renderer: function (v) {
+                        if (!v) return '-';
+                        var s = Ext.htmlEncode(v);
+                        if (/^OK$/i.test(v)) {
+                            return '<span style="color:green;">' + s + '</span>';
+                        }
+                        return '<span style="color:red;font-weight:bold;">' + s + '</span>';
+                    },
+                },
+                { text: 'Temp', dataIndex: 'temperature', width: 60, renderer: Ext.htmlEncode },
                 {
                     text: 'Power-On (h)',
                     dataIndex: 'power_on_hours',
-                    width: 100,
+                    width: 95,
                     renderer: function (v) {
                         if (v) {
                             var n = parseInt(v, 10);
@@ -344,17 +382,21 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     },
                 },
                 {
-                    text: 'Realloc',
-                    dataIndex: 'reallocated_sectors',
-                    width: 70,
-                    renderer: function (v) {
-                        var s = Ext.htmlEncode(v || '-');
-                        if (v && parseInt(v, 10) > 0) {
+                    text: 'Defects',
+                    dataIndex: 'grown_defect_list',
+                    width: 65,
+                    renderer: function (v, meta, rec) {
+                        // Show grown_defect_list for SAS, reallocated_sectors for ATA
+                        var val = v || rec.get('reallocated_sectors');
+                        if (!val && val !== 0 && val !== '0') return '-';
+                        var s = Ext.htmlEncode(String(val));
+                        if (parseInt(val, 10) > 0) {
                             return '<span style="color:orange;font-weight:bold;">' + s + '</span>';
                         }
                         return s;
                     },
                 },
+                { text: 'RPM', dataIndex: 'rotation_rate', width: 70, renderer: Ext.htmlEncode, hidden: true },
             ],
             emptyText: 'No drives detected behind HP Smart Array controllers.',
             listeners: {
@@ -429,6 +471,15 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                 if (data.drives) {
                     me.driveGrid.getStore().loadData(data.drives);
 
+                    // Show ssacli columns if data is present
+                    var hasSSA = data.drives.some(function (d) { return !!d.physicaldrive; });
+                    var cols = me.driveGrid.getColumns();
+                    cols.forEach(function (col) {
+                        if (col.dataIndex === 'physicaldrive') {
+                            col.setVisible(hasSSA);
+                        }
+                    });
+
                     var total = data.drives.length;
                     var healthy = 0;
                     var failed = 0;
@@ -454,6 +505,19 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     if (unknown > 0) {
                         statusMsg += ', ' + unknown + ' unknown';
                     }
+
+                    // Show controller info from ssacli
+                    if (data.controllers && data.controllers.length > 0) {
+                        var ctrl = data.controllers[0];
+                        var ctrlName = ctrl.controller_model || ctrl.model || '';
+                        if (ctrlName && ctrlName !== 'LOGICAL VOLUME') {
+                            statusMsg += ' | ' + Ext.htmlEncode(ctrlName);
+                            if (ctrl.controller_slot !== undefined) {
+                                statusMsg += ' Slot ' + ctrl.controller_slot;
+                            }
+                        }
+                    }
+
                     statusText.setText(statusMsg);
                 } else {
                     statusText.setText('No drives found.');

@@ -19,6 +19,177 @@ use JSON;
 binmode(STDOUT, ':utf8');
 
 my $SMARTCTL = '/usr/sbin/smartctl';
+my $SSACLI   = '/usr/sbin/ssacli';
+
+# ---------------------------------------------------------------------------
+# Check if ssacli is available
+# ---------------------------------------------------------------------------
+sub ssacli_available {
+    return -x $SSACLI;
+}
+
+# ---------------------------------------------------------------------------
+# Parse ssacli controller list: "ssacli ctrl all show"
+# Returns: [ { slot => 4, model => "Smart Array P420" }, ... ]
+# ---------------------------------------------------------------------------
+sub ssacli_get_controllers {
+    my @lines = eval { run_cmd($SSACLI, 'ctrl', 'all', 'show') };
+    return [] if $@;
+
+    my @ctrls;
+    for my $line (@lines) {
+        # "Smart Array P420 in Slot 4"
+        if ($line =~ /^\s*(.+?)\s+in\s+Slot\s+(\d+)/i) {
+            push @ctrls, {
+                model => $1,
+                slot  => int($2),
+            };
+        }
+    }
+    return \@ctrls;
+}
+
+# ---------------------------------------------------------------------------
+# Parse ssacli physical drive details: "ssacli ctrl slot=N pd all show detail"
+# Returns: [ { serial => ..., model => ..., bay => ..., array => ..., ... }, ... ]
+# ---------------------------------------------------------------------------
+sub ssacli_get_drives {
+    my ($slot) = @_;
+    my @lines = eval { run_cmd($SSACLI, 'ctrl', "slot=$slot", 'pd', 'all', 'show', 'detail') };
+    return [] if $@;
+
+    my @drives;
+    my $current_drive = undef;
+    my $current_array = '';
+
+    for my $line (@lines) {
+        # "   Array A" or "   Array B"
+        if ($line =~ /^\s+Array\s+([A-Z])\s*$/i) {
+            $current_array = $1;
+            next;
+        }
+
+        # "      physicaldrive 2I:0:1"
+        if ($line =~ /^\s+physicaldrive\s+(\S+)/) {
+            push @drives, $current_drive if $current_drive;
+            $current_drive = {
+                physicaldrive => $1,
+                array         => $current_array,
+            };
+            next;
+        }
+
+        # Key: Value lines within a physicaldrive block
+        if ($current_drive && $line =~ /^\s{9,}(\S[^:]+?):\s+(.+)$/) {
+            my ($key, $val) = ($1, $2);
+            $val =~ s/^\s+|\s+$//g;
+
+            if ($key eq 'Port')            { $current_drive->{port} = $val; }
+            elsif ($key eq 'Box')          { $current_drive->{box} = $val; }
+            elsif ($key eq 'Bay')          { $current_drive->{bay} = $val; }
+            elsif ($key eq 'Status')       { $current_drive->{status} = $val; }
+            elsif ($key eq 'Drive Type')   { $current_drive->{drive_type} = $val; }
+            elsif ($key eq 'Interface Type') { $current_drive->{interface_type} = $val; }
+            elsif ($key eq 'Size')         { $current_drive->{size} = $val; }
+            elsif ($key eq 'Serial Number') { $current_drive->{serial} = $val; }
+            elsif ($key eq 'Model')        {
+                $val =~ s/^ATA\s+//;  # ssacli prefixes SATA models with "ATA"
+                $current_drive->{model} = $val;
+            }
+            elsif ($key eq 'Firmware Revision')   { $current_drive->{firmware} = $val; }
+            elsif ($key eq 'Rotational Speed')     { $current_drive->{rotational_speed} = $val; }
+            elsif ($key eq 'Current Temperature (C)') { $current_drive->{ssa_temperature} = "${val} C"; }
+            elsif ($key eq 'Maximum Temperature (C)') { $current_drive->{max_temperature} = "${val} C"; }
+            elsif ($key eq 'PHY Transfer Rate')    { $current_drive->{phy_transfer_rate} = $val; }
+            elsif ($key eq 'Drive exposed to OS')  { $current_drive->{exposed_to_os} = $val; }
+            elsif ($key eq 'WWID')                 { $current_drive->{wwid} = $val; }
+        }
+    }
+    push @drives, $current_drive if $current_drive;
+
+    return \@drives;
+}
+
+# ---------------------------------------------------------------------------
+# Parse ssacli logical drive info: "ssacli ctrl slot=N ld all show detail"
+# Returns: [ { ld_id => 1, raid_level => '1', size => '3.6 TB', ... }, ... ]
+# ---------------------------------------------------------------------------
+sub ssacli_get_logical_drives {
+    my ($slot) = @_;
+    my @lines = eval { run_cmd($SSACLI, 'ctrl', "slot=$slot", 'ld', 'all', 'show', 'detail') };
+    return [] if $@;
+
+    my @lds;
+    my $current_ld = undef;
+    my $current_array = '';
+
+    for my $line (@lines) {
+        if ($line =~ /^\s+Array\s+([A-Z])\s*$/i) {
+            $current_array = $1;
+            next;
+        }
+        # "      Logical Drive: 1"
+        if ($line =~ /Logical Drive:\s*(\d+)/i) {
+            push @lds, $current_ld if $current_ld;
+            $current_ld = {
+                ld_id => int($1),
+                array => $current_array,
+            };
+            next;
+        }
+        if ($current_ld && $line =~ /^\s{9,}(\S[^:]+?):\s+(.+)$/) {
+            my ($key, $val) = ($1, $2);
+            $val =~ s/^\s+|\s+$//g;
+            if ($key eq 'Fault Tolerance') { $current_ld->{raid_level} = $val; }
+            elsif ($key eq 'Size')         { $current_ld->{size} = $val; }
+            elsif ($key eq 'Status')       { $current_ld->{status} = $val; }
+            elsif ($key eq 'Disk Name')    { $current_ld->{disk_name} = $val; }
+        }
+    }
+    push @lds, $current_ld if $current_ld;
+
+    return \@lds;
+}
+
+# ---------------------------------------------------------------------------
+# Build a serial-to-ssacli-info lookup from all ssacli controllers.
+# Also returns enriched controller list and logical drive info.
+# ---------------------------------------------------------------------------
+sub ssacli_gather_all {
+    my @ssa_controllers;
+    my %drive_by_serial;   # serial => { bay, port, box, array, status, ... }
+    my @logical_drives;
+    my $total_pd_count = 0;
+
+    my $ctrls = ssacli_get_controllers();
+    for my $ctrl (@$ctrls) {
+        push @ssa_controllers, $ctrl;
+
+        my $pds = ssacli_get_drives($ctrl->{slot});
+        for my $pd (@$pds) {
+            $pd->{controller_model} = $ctrl->{model};
+            $pd->{controller_slot}  = $ctrl->{slot};
+            if ($pd->{serial}) {
+                $drive_by_serial{$pd->{serial}} = $pd;
+            }
+            $total_pd_count++;
+        }
+
+        my $lds = ssacli_get_logical_drives($ctrl->{slot});
+        for my $ld (@$lds) {
+            $ld->{controller_model} = $ctrl->{model};
+            $ld->{controller_slot}  = $ctrl->{slot};
+            push @logical_drives, $ld;
+        }
+    }
+
+    return {
+        controllers    => \@ssa_controllers,
+        drive_by_serial => \%drive_by_serial,
+        logical_drives => \@logical_drives,
+        pd_count       => $total_pd_count,
+    };
+}
 
 # ---------------------------------------------------------------------------
 # Utility: run a command, capture stdout, return lines
@@ -128,11 +299,12 @@ my %CONTROLLER_MODELS = map { lc($_) => 1 } qw(
 );
 
 sub probe_drives {
-    my ($dev) = @_;
+    my ($dev, $max_ports) = @_;
+    $max_ports //= 128;  # default: probe up to 128 if no ssacli hint
     my @drives;
     my $consecutive_fail = 0;
 
-    for my $port (0 .. 127) {
+    for my $port (0 .. ($max_ports - 1)) {
         # Single smartctl call with -a (all info) — gets device info, health,
         # attributes, error log, self-test log in one pass.
         my @output = eval {
@@ -395,24 +567,73 @@ sub group_by_controller {
 }
 
 # ---------------------------------------------------------------------------
+# Merge ssacli info into a drive hash (matched by serial number).
+# ---------------------------------------------------------------------------
+sub merge_ssacli_info {
+    my ($drive, $ssa_info) = @_;
+    return unless $ssa_info && $drive->{serial};
+
+    my $ssa = $ssa_info->{$drive->{serial}};
+    return unless $ssa;
+
+    # Add ssacli-exclusive fields
+    $drive->{bay}              = $ssa->{bay}              if $ssa->{bay};
+    $drive->{port}             = $ssa->{port}             if $ssa->{port};
+    $drive->{box}              = $ssa->{box}              if $ssa->{box};
+    $drive->{array}            = $ssa->{array}            if $ssa->{array};
+    $drive->{status}           = $ssa->{status}           if $ssa->{status};
+    $drive->{drive_type}       = $ssa->{drive_type}       if $ssa->{drive_type};
+    $drive->{interface_type}   = $ssa->{interface_type}   if $ssa->{interface_type};
+    $drive->{physicaldrive}    = $ssa->{physicaldrive}    if $ssa->{physicaldrive};
+    $drive->{controller_model} = $ssa->{controller_model} if $ssa->{controller_model};
+    $drive->{controller_slot}  = $ssa->{controller_slot}  if defined $ssa->{controller_slot};
+    $drive->{wwid}             = $ssa->{wwid}             if $ssa->{wwid};
+    $drive->{max_temperature}  = $ssa->{max_temperature}  if $ssa->{max_temperature};
+    # Use ssacli temperature if smartctl didn't provide one
+    $drive->{temperature}    //= $ssa->{ssa_temperature}  if $ssa->{ssa_temperature};
+}
+
+# ---------------------------------------------------------------------------
 # Main dispatch
 # ---------------------------------------------------------------------------
 my $mode = $ARGV[0] // 'summary';
 
+# Gather ssacli data once if available
+my $ssa_data;
+if (ssacli_available() && $mode ne 'detail') {
+    $ssa_data = eval { ssacli_gather_all() };
+    warn "ssacli error (continuing without it): $@\n" if $@;
+}
+
 if ($mode eq 'controllers') {
     my $ctrls = detect_controllers();
     my @list = values %$ctrls;
+    # Enrich with ssacli controller info
+    if ($ssa_data && @{$ssa_data->{controllers}}) {
+        for my $ctrl (@list) {
+            # Replace generic "LOGICAL VOLUME" with real controller model
+            for my $sc (@{$ssa_data->{controllers}}) {
+                $ctrl->{controller_model} = $sc->{model};
+                $ctrl->{controller_slot}  = $sc->{slot};
+            }
+        }
+    }
     print encode_json(\@list);
 }
 elsif ($mode eq 'drives') {
     my $ctrls = detect_controllers();
     my $hosts = group_by_controller($ctrls);
+    # Use ssacli drive count as probe limit (+2 for controller chip + margin)
+    my $max_ports = ($ssa_data && $ssa_data->{pd_count} > 0)
+        ? $ssa_data->{pd_count} + 2
+        : undef;
     my @all_drives;
     for my $host (sort keys %$hosts) {
         my $h = $hosts->{$host};
-        my $drives = probe_drives($h->{probe_dev});
+        my $drives = probe_drives($h->{probe_dev}, $max_ports);
         for my $d (@$drives) {
             $d->{logical_volumes} = $h->{devices};
+            merge_ssacli_info($d, $ssa_data->{drive_by_serial}) if $ssa_data;
             push @all_drives, $d;
         }
     }
@@ -434,20 +655,40 @@ elsif ($mode eq 'summary') {
     my @ctrl_list = values %$ctrls;
     my $hosts = group_by_controller($ctrls);
 
+    # Enrich controllers with ssacli info
+    if ($ssa_data && @{$ssa_data->{controllers}}) {
+        for my $ctrl (@ctrl_list) {
+            for my $sc (@{$ssa_data->{controllers}}) {
+                $ctrl->{controller_model} = $sc->{model};
+                $ctrl->{controller_slot}  = $sc->{slot};
+            }
+        }
+    }
+
+    my $max_ports = ($ssa_data && $ssa_data->{pd_count} > 0)
+        ? $ssa_data->{pd_count} + 2
+        : undef;
     my @all_drives;
     for my $host (sort keys %$hosts) {
         my $h = $hosts->{$host};
-        my $drives = probe_drives($h->{probe_dev});
+        my $drives = probe_drives($h->{probe_dev}, $max_ports);
         for my $d (@$drives) {
             $d->{logical_volumes} = $h->{devices};
+            merge_ssacli_info($d, $ssa_data->{drive_by_serial}) if $ssa_data;
             push @all_drives, $d;
         }
     }
 
-    print encode_json({
+    my %result = (
         controllers => \@ctrl_list,
         drives      => \@all_drives,
-    });
+    );
+    # Include logical drive info if ssacli provided it
+    if ($ssa_data && @{$ssa_data->{logical_drives}}) {
+        $result{logical_drives} = $ssa_data->{logical_drives};
+    }
+
+    print encode_json(\%result);
 }
 else {
     die "Unknown mode: $mode\nUsage: smart-raid-scan [summary|controllers|drives|detail <dev> <port>]\n";

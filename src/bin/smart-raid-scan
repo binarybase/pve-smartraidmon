@@ -33,7 +33,14 @@ sub run_cmd {
 
 # ---------------------------------------------------------------------------
 # Detect block devices that sit behind an HP Smart Array (CCISS) controller.
-# We look for /dev/sd* devices whose driver is hpsa or cciss.
+#
+# The naive approach of reading /sys/block/sdX/device/driver fails because
+# that symlink points to the SCSI *disk* driver ("sd"), not the HBA driver
+# ("hpsa").  Instead we use three detection methods:
+#
+#   1. SCSI host proc_name — /sys/class/scsi_host/hostN/proc_name == "hpsa"
+#   2. hpsa-specific sysfs attributes (hp_ssd_smart_path_enabled, lunid)
+#   3. Legacy cciss driver symlink (very old kernels)
 # ---------------------------------------------------------------------------
 sub detect_controllers {
     my %controllers;
@@ -43,17 +50,53 @@ sub detect_controllers {
     closedir($dh);
 
     for my $dev (sort @devs) {
-        # Resolve the device driver via sysfs
-        my $driver_link = "/sys/block/$dev/device/driver";
-        next unless -l $driver_link;
+        my $dev_dir = "/sys/block/$dev/device";
+        next unless -d $dev_dir;
 
-        my $driver_path = readlink($driver_link) // '';
-        my ($driver_name) = $driver_path =~ m{/([^/]+)$};
-        next unless $driver_name && ($driver_name eq 'hpsa' || $driver_name eq 'cciss');
+        my $is_hpsa = 0;
+        my $driver_name = '';
+
+        # Method 1: Check the SCSI host adapter's proc_name.
+        # /sys/block/sda is a symlink containing .../hostN/... in its path.
+        my $block_link = readlink("/sys/block/$dev") // '';
+        if ($block_link =~ m{/host(\d+)/}) {
+            my $proc_file = "/sys/class/scsi_host/host$1/proc_name";
+            if (open(my $fh, '<', $proc_file)) {
+                my $pname = <$fh>;
+                chomp $pname;
+                close($fh);
+                if ($pname eq 'hpsa') {
+                    $is_hpsa = 1;
+                    $driver_name = 'hpsa';
+                }
+            }
+        }
+
+        # Method 2: hpsa exposes unique sysfs attributes on each SCSI device.
+        if (!$is_hpsa && (-e "$dev_dir/hp_ssd_smart_path_enabled" || -e "$dev_dir/lunid")) {
+            $is_hpsa = 1;
+            $driver_name = 'hpsa';
+        }
+
+        # Method 3: Legacy cciss driver (older kernels expose it as the
+        # device driver symlink).
+        if (!$is_hpsa) {
+            my $driver_link = "$dev_dir/driver";
+            if (-l $driver_link) {
+                my $driver_path = readlink($driver_link) // '';
+                my ($dname) = $driver_path =~ m{/([^/]+)$};
+                if ($dname && ($dname eq 'hpsa' || $dname eq 'cciss')) {
+                    $is_hpsa = 1;
+                    $driver_name = $dname;
+                }
+            }
+        }
+
+        next unless $is_hpsa;
 
         # Read model from sysfs if available
         my $model = '';
-        my $model_file = "/sys/block/$dev/device/model";
+        my $model_file = "$dev_dir/model";
         if (open(my $mf, '<', $model_file)) {
             $model = <$mf>;
             chomp $model;

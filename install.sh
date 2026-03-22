@@ -55,13 +55,38 @@ if [ -f "$NODES_PM" ]; then
     # Remove any old register_method blocks for SmartRaidMon
     perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
 
-    # Add 'require' (not 'use') before the final '1;'
-    # 'require' runs at runtime, so all packages in Nodes.pm are already defined.
-    # SmartRaidMon.pm self-registers with PVE::API2::Nodes::Nodeinfo.
-    perl -i -pe 'if (/^1;\s*$/ && !$done) {
-        print "require PVE::API2::SmartRaidMon;\n\n";
-        $done = 1;
-    }' "$NODES_PM"
+    # Nodes.pm has TWO packages (Nodeinfo and Nodes) and TWO '1;' lines.
+    # The LAST '1;' is in the PVE::API2::Nodes::Nodeinfo package context,
+    # which is where sub-route registrations (disks, qemu, etc.) live.
+    # We insert 'use' + register_method before that last '1;'.
+    perl -e '
+        use strict;
+        use warnings;
+        my $file = shift;
+        open my $fh, "<", $file or die "Cannot read $file: $!\n";
+        my @lines = <$fh>;
+        close $fh;
+
+        # Find the LAST "1;" line
+        my $last_idx = -1;
+        for my $i (0 .. $#lines) {
+            $last_idx = $i if $lines[$i] =~ /^1;\s*$/;
+        }
+        die "Could not find terminating 1; in $file\n" if $last_idx < 0;
+
+        open my $out, ">", $file or die "Cannot write $file: $!\n";
+        for my $i (0 .. $#lines) {
+            if ($i == $last_idx) {
+                print $out "use PVE::API2::SmartRaidMon;\n";
+                print $out "__PACKAGE__->register_method({\n";
+                print $out "    subclass => \"PVE::API2::SmartRaidMon\",\n";
+                print $out "    path => \"smartraidmon\",\n";
+                print $out "});\n\n";
+            }
+            print $out $lines[$i];
+        }
+        close $out;
+    ' "$NODES_PM"
 
     # Verify it compiled correctly
     if perl -c "$NODES_PM" 2>/dev/null; then
@@ -69,7 +94,9 @@ if [ -f "$NODES_PM" ]; then
     else
         echo "ERROR: Nodes.pm failed syntax check after patching!"
         echo "       Attempting to roll back..."
+        sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
         sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
+        perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
         echo "       Rolled back. Please check Nodes.pm manually."
         exit 1
     fi

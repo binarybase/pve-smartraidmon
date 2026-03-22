@@ -30,6 +30,22 @@ sub run_scan {
     return $data;
 }
 
+# Helper: run action command requiring Sys.Modify
+sub run_action {
+    my ($node, $mode, @extra_args) = @_;
+
+    my $rpcenv = PVE::RPCEnvironment::get();
+    $rpcenv->check($rpcenv->get_user(), "/nodes/$node", ['Sys.Modify']);
+
+    my @cmd = ($SCAN_SCRIPT, $mode, @extra_args);
+    my $output = '';
+    run_command(\@cmd, outfunc => sub { $output .= $_[0]; });
+
+    my $data = eval { decode_json($output) };
+    die "Failed to parse output: $@\n" if $@;
+    return $data;
+}
+
 __PACKAGE__->register_method({
     name => 'index',
     path => '',
@@ -57,6 +73,9 @@ __PACKAGE__->register_method({
             { subdir => 'drives' },
             { subdir => 'drive-detail' },
             { subdir => 'summary' },
+            { subdir => 'led' },
+            { subdir => 'spare' },
+            { subdir => 'unspare' },
         ];
     },
 });
@@ -233,6 +252,112 @@ __PACKAGE__->register_method({
         die "Invalid port\n" unless $port =~ /^\d+$/ && $port >= 0 && $port <= 127;
 
         return run_scan($param->{node}, 'detail', $device, $port);
+    },
+});
+
+my $pd_pattern = '[0-9A-Za-z]+:[0-9A-Za-z]+:[0-9A-Za-z]+';
+
+__PACKAGE__->register_method({
+    name => 'led',
+    path => 'led',
+    method => 'POST',
+    description => 'Turn drive LED on or off via ssacli.',
+    protected => 1,
+    permissions => {
+        check => ['perm', '/nodes/{node}', ['Sys.Modify']],
+    },
+    parameters => {
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            slot => {
+                type => 'integer',
+                description => 'Controller slot number.',
+                minimum => 0,
+            },
+            physicaldrive => {
+                type => 'string',
+                description => 'Physical drive identifier (e.g., 1I:1:5).',
+                pattern => $pd_pattern,
+            },
+            action => {
+                type => 'string',
+                description => 'LED action.',
+                enum => ['on', 'off'],
+            },
+        },
+    },
+    returns => { type => 'object' },
+    code => sub {
+        my ($param) = @_;
+        return run_action($param->{node}, 'led',
+            $param->{slot}, $param->{physicaldrive}, $param->{action});
+    },
+});
+
+__PACKAGE__->register_method({
+    name => 'spare',
+    path => 'spare',
+    method => 'POST',
+    description => 'Add a physical drive as a spare via ssacli.',
+    protected => 1,
+    permissions => {
+        check => ['perm', '/nodes/{node}', ['Sys.Modify']],
+    },
+    parameters => {
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            slot => {
+                type => 'integer',
+                description => 'Controller slot number.',
+                minimum => 0,
+            },
+            physicaldrive => {
+                type => 'string',
+                description => 'Physical drive identifier (e.g., 1I:1:5).',
+                pattern => $pd_pattern,
+            },
+        },
+    },
+    returns => { type => 'object' },
+    code => sub {
+        my ($param) = @_;
+        return run_action($param->{node}, 'spare',
+            $param->{slot}, $param->{physicaldrive});
+    },
+});
+
+__PACKAGE__->register_method({
+    name => 'unspare',
+    path => 'unspare',
+    method => 'POST',
+    description => 'Remove a physical drive from spare via ssacli.',
+    protected => 1,
+    permissions => {
+        check => ['perm', '/nodes/{node}', ['Sys.Modify']],
+    },
+    parameters => {
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            slot => {
+                type => 'integer',
+                description => 'Controller slot number.',
+                minimum => 0,
+            },
+            physicaldrive => {
+                type => 'string',
+                description => 'Physical drive identifier (e.g., 1I:1:5).',
+                pattern => $pd_pattern,
+            },
+        },
+    },
+    returns => { type => 'object' },
+    code => sub {
+        my ($param) = @_;
+        return run_action($param->{node}, 'unspare',
+            $param->{slot}, $param->{physicaldrive});
     },
 });
 

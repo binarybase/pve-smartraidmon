@@ -10,6 +10,9 @@
 #   smart-raid-scan controllers          - List controllers only
 #   smart-raid-scan drives               - List all drives with health overview
 #   smart-raid-scan detail <dev> <port>  - Full S.M.A.R.T. detail for one drive
+#   smart-raid-scan led <slot> <pd> <on|off>  - Turn drive LED on/off
+#   smart-raid-scan spare <slot> <pd>         - Add drive as spare
+#   smart-raid-scan unspare <slot> <pd>       - Remove drive from spare
 #
 
 use strict;
@@ -206,6 +209,33 @@ sub run_cmd {
 }
 
 # ---------------------------------------------------------------------------
+# Utility: format capacity in GB from smartctl or ssacli output
+#   smartctl: "4,000,787,030,016 bytes [4.00 TB]"
+#   ssacli:   "4 TB", "256 GB", "480 GB"
+# Returns: "3726 GB", "256 GB", etc.
+# ---------------------------------------------------------------------------
+sub format_capacity_gb {
+    my ($raw) = @_;
+    return '' unless defined $raw;
+
+    # Try smartctl format: "N bytes [...]" — extract bytes
+    if ($raw =~ /([\d,]+)\s*bytes/) {
+        my $bytes = $1;
+        $bytes =~ s/,//g;
+        my $gb = $bytes / (1000 * 1000 * 1000);
+        return sprintf("%.0f GB", $gb);
+    }
+    # ssacli format: "4 TB" or "256 GB"
+    if ($raw =~ /([\d.]+)\s*TB/i) {
+        return sprintf("%.0f GB", $1 * 1000);
+    }
+    if ($raw =~ /([\d.]+)\s*GB/i) {
+        return sprintf("%.0f GB", $1);
+    }
+    return $raw;
+}
+
+# ---------------------------------------------------------------------------
 # Detect block devices that sit behind an HP Smart Array (CCISS) controller.
 #
 # The naive approach of reading /sys/block/sdX/device/driver fails because
@@ -358,8 +388,9 @@ sub probe_drives {
             $info{serial} =~ s/^\s+|\s+$//g;
         }
         if ($out_text =~ /User Capacity:\s*(.+)/i) {
-            $info{capacity} = $1;
-            $info{capacity} =~ s/^\s+|\s+$//g;
+            my $raw_cap = $1;
+            $raw_cap =~ s/^\s+|\s+$//g;
+            $info{capacity} = format_capacity_gb($raw_cap);
         }
         if ($out_text =~ /Firmware Version:\s*(.+)/i) {
             $info{firmware} = $1;
@@ -462,6 +493,11 @@ sub get_drive_detail {
         }
     }
     $result{info} = \%info;
+
+    # Format capacity in GB if present
+    if ($info{user_capacity}) {
+        $result{info}{user_capacity} = format_capacity_gb($info{user_capacity});
+    }
 
     # --- Parse health (ATA and SAS formats) ---
     if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
@@ -629,7 +665,7 @@ sub ssacli_only_drives {
             logical_volumes  => $logical_volumes,
         );
         $d{controller_slot}  = $ssa->{controller_slot} if defined $ssa->{controller_slot};
-        $d{capacity}         = $ssa->{size}            if $ssa->{size};
+        $d{capacity}         = format_capacity_gb($ssa->{size}) if $ssa->{size};
         $d{wwid}             = $ssa->{wwid}            if $ssa->{wwid};
         $d{temperature}      = $ssa->{ssa_temperature} if $ssa->{ssa_temperature};
         $d{max_temperature}  = $ssa->{max_temperature} if $ssa->{max_temperature};
@@ -648,7 +684,7 @@ my $mode = $ARGV[0] // 'summary';
 
 # Gather ssacli data once if available
 my $ssa_data;
-if (ssacli_available() && $mode ne 'detail') {
+if (ssacli_available() && $mode !~ /^(detail|led|spare|unspare)$/) {
     $ssa_data = eval { ssacli_gather_all() };
     warn "ssacli error (continuing without it): $@\n" if $@;
 }
@@ -752,8 +788,43 @@ elsif ($mode eq 'summary') {
 
     print encode_json(\%result);
 }
+elsif ($mode eq 'led') {
+    my $slot   = $ARGV[1] // die "Usage: smart-raid-scan led <slot> <pd> <on|off>\n";
+    my $pd     = $ARGV[2] // die "Usage: smart-raid-scan led <slot> <pd> <on|off>\n";
+    my $action = $ARGV[3] // die "Usage: smart-raid-scan led <slot> <pd> <on|off>\n";
+
+    die "Invalid slot\n" unless $slot =~ /^\d+$/;
+    die "Invalid physicaldrive\n" unless $pd =~ /^[\dA-Za-z]+:[\dA-Za-z]+:[\dA-Za-z]+$/;
+    die "Invalid action (must be on or off)\n" unless $action =~ /^(on|off)$/;
+
+    die "ssacli not available\n" unless ssacli_available();
+    my @out = run_cmd($SSACLI, 'ctrl', "slot=$slot", 'pd', $pd, 'modify', "led=$action");
+    print encode_json({ success => 1, message => "LED $action for $pd" });
+}
+elsif ($mode eq 'spare') {
+    my $slot = $ARGV[1] // die "Usage: smart-raid-scan spare <slot> <pd>\n";
+    my $pd   = $ARGV[2] // die "Usage: smart-raid-scan spare <slot> <pd>\n";
+
+    die "Invalid slot\n" unless $slot =~ /^\d+$/;
+    die "Invalid physicaldrive\n" unless $pd =~ /^[\dA-Za-z]+:[\dA-Za-z]+:[\dA-Za-z]+$/;
+
+    die "ssacli not available\n" unless ssacli_available();
+    my @out = run_cmd($SSACLI, 'ctrl', "slot=$slot", 'array', 'all', 'add', "spares=$pd");
+    print encode_json({ success => 1, message => "Drive $pd added as spare" });
+}
+elsif ($mode eq 'unspare') {
+    my $slot = $ARGV[1] // die "Usage: smart-raid-scan unspare <slot> <pd>\n";
+    my $pd   = $ARGV[2] // die "Usage: smart-raid-scan unspare <slot> <pd>\n";
+
+    die "Invalid slot\n" unless $slot =~ /^\d+$/;
+    die "Invalid physicaldrive\n" unless $pd =~ /^[\dA-Za-z]+:[\dA-Za-z]+:[\dA-Za-z]+$/;
+
+    die "ssacli not available\n" unless ssacli_available();
+    my @out = run_cmd($SSACLI, 'ctrl', "slot=$slot", 'array', 'all', 'remove', "spares=$pd");
+    print encode_json({ success => 1, message => "Drive $pd removed from spare" });
+}
 else {
-    die "Unknown mode: $mode\nUsage: smart-raid-scan [summary|controllers|drives|detail <dev> <port>]\n";
+    die "Unknown mode: $mode\nUsage: smart-raid-scan [summary|controllers|drives|detail|led|spare|unspare]\n";
 }
 
 exit 0;

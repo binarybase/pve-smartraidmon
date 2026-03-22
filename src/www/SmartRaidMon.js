@@ -334,12 +334,25 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                 },
                 { text: 'Model', dataIndex: 'model', width: 180, renderer: Ext.htmlEncode },
                 { text: 'Serial', dataIndex: 'serial', width: 130, renderer: Ext.htmlEncode },
-                { text: 'Capacity', dataIndex: 'capacity', width: 150, renderer: Ext.htmlEncode },
+                { text: 'Capacity', dataIndex: 'capacity', width: 80, renderer: Ext.htmlEncode },
                 {
                     text: 'Interface',
                     dataIndex: 'interface_type',
                     width: 70,
                     renderer: Ext.htmlEncode,
+                },
+                {
+                    text: 'Type',
+                    dataIndex: 'drive_type',
+                    width: 80,
+                    renderer: function (v) {
+                        if (!v) return '-';
+                        var s = Ext.htmlEncode(v);
+                        if (/spare/i.test(v)) {
+                            return '<span style="color:#1e90ff;font-weight:bold;">' + s + '</span>';
+                        }
+                        return s;
+                    },
                 },
                 {
                     text: 'Health',
@@ -437,6 +450,49 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                             port,
                         autoShow: true,
                     });
+                },
+                itemcontextmenu: function (view, record, item, index, e) {
+                    e.stopEvent();
+                    var pd = record.get('physicaldrive');
+                    var slot = record.get('controller_slot');
+                    if (!pd || slot === undefined || slot === null) return;
+
+                    var isSpare = /spare/i.test(record.get('drive_type') || '');
+                    var menu = Ext.create('Ext.menu.Menu', {
+                        items: [
+                            {
+                                text: 'Turn LED On',
+                                iconCls: 'fa fa-lightbulb-o',
+                                handler: function () {
+                                    me.driveAction('led', slot, pd, 'on');
+                                },
+                            },
+                            {
+                                text: 'Turn LED Off',
+                                iconCls: 'fa fa-circle-o',
+                                handler: function () {
+                                    me.driveAction('led', slot, pd, 'off');
+                                },
+                            },
+                            '-',
+                            {
+                                text: isSpare ? 'Remove from Spare' : 'Set as Spare',
+                                iconCls: isSpare ? 'fa fa-minus-circle' : 'fa fa-plus-circle',
+                                handler: function () {
+                                    var action = isSpare ? 'unspare' : 'spare';
+                                    var msg = isSpare
+                                        ? 'Remove drive ' + Ext.htmlEncode(pd) + ' from spare?'
+                                        : 'Add drive ' + Ext.htmlEncode(pd) + ' as spare for all arrays?';
+                                    Ext.Msg.confirm('Confirm', msg, function (btn) {
+                                        if (btn === 'yes') {
+                                            me.driveAction(action, slot, pd);
+                                        }
+                                    });
+                                },
+                            },
+                        ],
+                    });
+                    menu.showAt(e.getXY());
                 },
             },
         });
@@ -547,6 +603,31 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                 } else {
                     statusText.setText('No drives found.');
                 }
+            },
+        });
+    },
+
+    driveAction: function (action, slot, pd, extra) {
+        var me = this;
+        var nodename = me.pveSelNode.data.node;
+        var params = {
+            slot: slot,
+            physicaldrive: pd,
+        };
+        if (action === 'led' && extra) {
+            params.action = extra;
+        }
+        Proxmox.Utils.API2Request({
+            url: '/nodes/' + encodeURIComponent(nodename) +
+                 '/smartraidmon/' + action,
+            method: 'POST',
+            params: params,
+            failure: function (response) {
+                Ext.Msg.alert('Error',
+                    'Action failed: ' + (response.htmlStatus || 'Unknown error'));
+            },
+            success: function () {
+                me.loadSummary();
             },
         });
     },

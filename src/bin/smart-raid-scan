@@ -133,8 +133,9 @@ sub probe_drives {
     my $consecutive_fail = 0;
 
     for my $port (0 .. 127) {
+        # Single smartctl call: -i (info) + -H (health) + -A (attributes)
         my @output = eval {
-            run_cmd($SMARTCTL, '-i', "/dev/$dev", '-d', "cciss,$port");
+            run_cmd($SMARTCTL, '-i', '-H', '-A', "/dev/$dev", '-d', "cciss,$port");
         };
         if ($@) {
             $consecutive_fail++;
@@ -164,6 +165,7 @@ sub probe_drives {
         my %info = (
             device     => $dev,
             cciss_port => $port,
+            health     => 'UNKNOWN',
         );
 
         # Parse basic info fields
@@ -198,79 +200,52 @@ sub probe_drives {
             $info{form_factor} =~ s/^\s+|\s+$//g;
         }
 
+        # --- Health & attributes (parsed from same output) ---
+
+        # Health status (ATA and SAS formats)
+        if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
+            my $s = $1; $s =~ s/^\s+|\s+$//g;
+            $info{health} = $s;
+        } elsif ($out_text =~ /SMART Health Status:\s*(.+)/i) {
+            my $s = $1; $s =~ s/^\s+|\s+$//g;
+            $info{health} = $s;
+        }
+
+        # Temperature (ATA attribute row, then SAS format)
+        if ($out_text =~ /194\s+Temperature_Celsius\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/i) {
+            $info{temperature} = "${1} C";
+        } elsif ($out_text =~ /Temperature_Celsius.*?(\d+)\s*(?:\(|$)/mi) {
+            $info{temperature} = "${1} C";
+        } elsif ($out_text =~ /Current Drive Temperature:\s*(\d+)/i) {
+            $info{temperature} = "${1} C";
+        }
+
+        # Power-on hours
+        if ($out_text =~ /^\s*9\s+Power_On_Hours\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d[\d,]*)/mi) {
+            my $h = $1; $h =~ s/,//g;
+            $info{power_on_hours} = $h;
+        } elsif ($out_text =~ /Accumulated power on time.*?(\d[\d,]+):\d+/mi) {
+            my $h = $1; $h =~ s/,//g;
+            $info{power_on_hours} = $h;
+        } elsif ($out_text =~ /number of hours powered up\s*=\s*(\d[\d,]*)/mi) {
+            my $h = $1; $h =~ s/,//g;
+            $info{power_on_hours} = $h;
+        }
+
+        # Reallocated sectors (ATA)
+        if ($out_text =~ /Reallocated_Sector_Ct.*?(\d+)\s*$/mi) {
+            $info{reallocated_sectors} = $1;
+        }
+
+        # Grown defect list (SAS — equivalent of reallocated sectors)
+        if ($out_text =~ /Elements in grown defect list:\s*(\d+)/i) {
+            $info{grown_defect_list} = $1;
+        }
+
         push @drives, \%info;
     }
 
     return \@drives;
-}
-
-# ---------------------------------------------------------------------------
-# Get S.M.A.R.T. health + overview for a drive
-# ---------------------------------------------------------------------------
-sub get_drive_health {
-    my ($dev, $port) = @_;
-
-    my @output = eval {
-        run_cmd($SMARTCTL, '-H', '-A', "/dev/$dev", '-d', "cciss,$port");
-    };
-    return { health => 'UNKNOWN' } if $@;
-
-    my $out_text = join("\n", @output);
-    my %result = (health => 'UNKNOWN');
-
-    # Parse overall health — ATA and SAS use different formats
-    # ATA:  "SMART overall-health self-assessment test result: PASSED"
-    # SAS:  "SMART Health Status: OK"
-    if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
-        my $status = $1;
-        $status =~ s/^\s+|\s+$//g;
-        $result{health} = $status;
-    } elsif ($out_text =~ /SMART Health Status:\s*(.+)/i) {
-        my $status = $1;
-        $status =~ s/^\s+|\s+$//g;
-        $result{health} = $status;
-    }
-
-    # Parse temperature (ATA and SAS formats)
-    if ($out_text =~ /194\s+Temperature_Celsius\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/i) {
-        $result{temperature} = "${1} C";
-    } elsif ($out_text =~ /Temperature_Celsius.*?(\d+)\s*(?:\(|$)/mi) {
-        $result{temperature} = "${1} C";
-    } elsif ($out_text =~ /Current Drive Temperature:\s*(\d+)/i) {
-        $result{temperature} = "${1} C";
-    }
-
-    # Parse power-on hours
-    # ATA: attribute row "  9 Power_On_Hours ... 99681" — match last number on the line
-    if ($out_text =~ /^\s*9\s+Power_On_Hours\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d[\d,]*)/mi) {
-        my $hours = $1;
-        $hours =~ s/,//g;
-        $result{power_on_hours} = $hours;
-    }
-    # SAS: "Accumulated power on time, hours:minutes 62011:14"
-    elsif ($out_text =~ /Accumulated power on time.*?(\d[\d,]+):\d+/mi) {
-        my $hours = $1;
-        $hours =~ s/,//g;
-        $result{power_on_hours} = $hours;
-    }
-    # SAS (Seagate): "number of hours powered up = 11280.67"
-    elsif ($out_text =~ /number of hours powered up\s*=\s*(\d[\d,]*)/mi) {
-        my $hours = $1;
-        $hours =~ s/,//g;
-        $result{power_on_hours} = $hours;
-    }
-
-    # Parse reallocated sectors (ATA only)
-    if ($out_text =~ /Reallocated_Sector_Ct.*?(\d+)\s*$/mi) {
-        $result{reallocated_sectors} = $1;
-    }
-
-    # SAS: grown defect list (equivalent of reallocated sectors)
-    if ($out_text =~ /Elements in grown defect list:\s*(\d+)/i) {
-        $result{grown_defect_list} = $1;
-    }
-
-    return \%result;
 }
 
 # ---------------------------------------------------------------------------
@@ -432,8 +407,6 @@ elsif ($mode eq 'drives') {
         my $drives = probe_drives($h->{probe_dev});
         for my $d (@$drives) {
             $d->{logical_volumes} = $h->{devices};
-            my $health = get_drive_health($d->{device}, $d->{cciss_port});
-            $d->{$_} = $health->{$_} for keys %$health;
             push @all_drives, $d;
         }
     }
@@ -461,8 +434,6 @@ elsif ($mode eq 'summary') {
         my $drives = probe_drives($h->{probe_dev});
         for my $d (@$drives) {
             $d->{logical_volumes} = $h->{devices};
-            my $health = get_drive_health($d->{device}, $d->{cciss_port});
-            $d->{$_} = $health->{$_} for keys %$health;
             push @all_drives, $d;
         }
     }

@@ -48,27 +48,37 @@ install -m 0644 "$SCRIPT_DIR/src/www/SmartRaidMon.js" \
 
 echo "[4/6] Registering API endpoint in PVE::API2::Nodes..."
 NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
-SRAID_MARKER="PVE::API2::SmartRaidMon"
 if [ -f "$NODES_PM" ]; then
-    if ! grep -q "$SRAID_MARKER" "$NODES_PM"; then
-        # Add 'use' statement after the last existing 'use PVE::API2::' line
-        LAST_USE_LINE=$(grep -n '^use PVE::API2::' "$NODES_PM" | tail -1 | cut -d: -f1)
-        if [ -n "$LAST_USE_LINE" ]; then
-            sed -i "${LAST_USE_LINE}a use PVE::API2::SmartRaidMon;" "$NODES_PM"
-        else
-            # Fallback: add after 'use strict;'
-            sed -i '/^use strict;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
-        fi
+    # Always clean any previous registration first (idempotent)
+    sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
+    # Remove register_method block for SmartRaidMon (multi-line)
+    perl -0777 -i -pe 's/\n__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n?//gs' "$NODES_PM"
 
-        # Add register_method call before the final '1;'
-        sed -i '/^1;$/i \
-__PACKAGE__->register_method ({\
-    subclass => "PVE::API2::SmartRaidMon",\
-    path => "smartraidmon",\
-});' "$NODES_PM"
-        echo "       API route registered."
+    # Add 'use' statement after the last existing 'use PVE::API2::' line
+    LAST_USE_LINE=$(grep -n '^use PVE::API2::' "$NODES_PM" | tail -1 | cut -d: -f1)
+    if [ -n "$LAST_USE_LINE" ]; then
+        sed -i "${LAST_USE_LINE}a use PVE::API2::SmartRaidMon;" "$NODES_PM"
     else
-        echo "       API route already registered."
+        sed -i '/^use strict;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+    fi
+
+    # Add register_method block before the final '1;'
+    # Using perl for reliable multi-line insertion
+    perl -i -pe 'if (/^1;$/ && !$done) {
+        print qq{\n__PACKAGE__->register_method ({\n    subclass => "PVE::API2::SmartRaidMon",\n    path => "smartraidmon",\n});\n\n};
+        $done = 1;
+    }' "$NODES_PM"
+
+    # Verify it compiled correctly
+    if perl -c "$NODES_PM" 2>/dev/null; then
+        echo "       API route registered and verified."
+    else
+        echo "ERROR: Nodes.pm failed syntax check after patching!"
+        echo "       Attempting to roll back..."
+        sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
+        perl -0777 -i -pe 's/\n__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n?//gs' "$NODES_PM"
+        echo "       Rolled back. Please check Nodes.pm manually."
+        exit 1
     fi
 else
     echo "WARNING: $NODES_PM not found — API will not work."

@@ -15,9 +15,9 @@ echo "[1/5] Removing API route from PVE::API2::Nodes..."
 NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
 if [ -f "$NODES_PM" ]; then
     sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-    # Remove the register_method block (3 lines + closing brace)
-    sed -i '/subclass.*PVE::API2::SmartRaidMon/{ N; N; d; }' "$NODES_PM"
-    sed -i '/^__PACKAGE__->register_method.*SmartRaidMon/,/^});$/d' "$NODES_PM"
+    # Remove the register_method block (multi-line, reliable)
+    perl -0777 -i -pe 's/\n__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n?//gs' "$NODES_PM"
+    echo "       Cleaned."
 fi
 
 echo "[2/5] Removing Perl API module..."

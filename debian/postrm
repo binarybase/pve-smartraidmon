@@ -7,8 +7,7 @@ case "$1" in
         NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
         if [ -f "$NODES_PM" ]; then
             sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-            sed -i '/subclass.*PVE::API2::SmartRaidMon/{ N; N; d; }' "$NODES_PM"
-            sed -i '/^__PACKAGE__->register_method.*SmartRaidMon/,/^});$/d' "$NODES_PM"
+            perl -0777 -i -pe 's/\n__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n?//gs' "$NODES_PM"
         fi
 
         # Remove our script tag from PVE index

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        # Remove JS symlink
+        rm -f /usr/share/javascript/proxmox-widget-toolkit/proxmox-smart-raid-mon.js
+
+        # Remove our script tag from PVE index
+        INDEX_FILE="/usr/share/pve-manager/index.html.tpl"
+        if [ -f "$INDEX_FILE" ]; then
+            sed -i '/SmartRaidMon\.js/d' "$INDEX_FILE"
+        fi
+
+        # Restart pveproxy
+        if systemctl is-active --quiet pveproxy; then
+            systemctl restart pveproxy || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,19 @@
+Source: pve-smartraidmon
+Section: admin
+Priority: optional
+Maintainer: PVE Smart RAID Monitor <dev@example.com>
+Build-Depends: debhelper (>= 12)
+Standards-Version: 4.5.0
+
+Package: pve-smartraidmon
+Architecture: all
+Depends: ${misc:Depends},
+         pve-manager (>= 8.0),
+         libpve-http-server-perl,
+         smartmontools,
+         perl,
+Description: Proxmox VE HP Smart Array S.M.A.R.T. Monitor
+ A Proxmox VE plugin that provides a web GUI for monitoring
+ S.M.A.R.T. data on drives behind HP Smart Array (CCISS)
+ controllers. Uses smartctl with -d cciss,N to query drive
+ health, attributes, and self-test results.

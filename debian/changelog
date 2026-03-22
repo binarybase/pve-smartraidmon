@@ -1,0 +1,10 @@
+pve-smartraidmon (1.0.0-1) stable; urgency=medium
+
+  * Initial release
+  * HP Smart Array S.M.A.R.T. monitoring via smartctl -d cciss,N
+  * Web GUI integration with Proxmox VE 8.x
+  * Auto-detection of controllers and drives
+  * Drive health overview with status indicators
+  * Detailed S.M.A.R.T. attribute viewer
+
+ -- PVE Smart RAID Monitor <dev@example.com>  Sat, 22 Mar 2026 00:00:00 +0000

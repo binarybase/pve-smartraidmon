@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Register the JS file with Proxmox VE's web UI
+        JS_FILE="/usr/share/pve-manager/js/SmartRaidMon.js"
+        HOOK_CONF="/etc/pve-smartraidmon.conf"
+
+        # Create symlink in the PVE js directory if not present
+        if [ ! -L "/usr/share/javascript/proxmox-widget-toolkit/proxmox-smart-raid-mon.js" ]; then
+            ln -sf "$JS_FILE" \
+                /usr/share/javascript/proxmox-widget-toolkit/proxmox-smart-raid-mon.js 2>/dev/null || true
+        fi
+
+        # Patch the PVE manager index to include our JS (idempotent)
+        INDEX_FILE="/usr/share/pve-manager/index.html.tpl"
+        MARKER="SmartRaidMon.js"
+        if [ -f "$INDEX_FILE" ] && ! grep -q "$MARKER" "$INDEX_FILE"; then
+            sed -i '/<\/head>/i \    <script type="text/javascript" src="/pve2/js/SmartRaidMon.js"><\/script>' "$INDEX_FILE"
+        fi
+
+        # Restart pveproxy to pick up changes
+        if systemctl is-active --quiet pveproxy; then
+            systemctl restart pveproxy || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

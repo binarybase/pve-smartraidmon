@@ -1,0 +1,342 @@
+#!/usr/bin/perl
+#
+# smart-raid-scan - HP Smart Array S.M.A.R.T. scanning wrapper
+#
+# Scans block devices for HP Smart Array (CCISS) controllers and queries
+# S.M.A.R.T. data via smartctl -d cciss,N.
+#
+# Usage:
+#   smart-raid-scan summary              - Full summary (controllers + drives)
+#   smart-raid-scan controllers          - List controllers only
+#   smart-raid-scan drives               - List all drives with health overview
+#   smart-raid-scan detail <dev> <port>  - Full S.M.A.R.T. detail for one drive
+#
+
+use strict;
+use warnings;
+use JSON;
+
+my $SMARTCTL = '/usr/sbin/smartctl';
+
+# ---------------------------------------------------------------------------
+# Utility: run a command, capture stdout, return lines
+# ---------------------------------------------------------------------------
+sub run_cmd {
+    my (@cmd) = @_;
+    my $pid = open(my $fh, '-|', @cmd);
+    die "Cannot run @cmd: $!\n" unless defined $pid;
+    my @lines = <$fh>;
+    close($fh);
+    chomp(@lines);
+    return @lines;
+}
+
+# ---------------------------------------------------------------------------
+# Detect block devices that sit behind an HP Smart Array (CCISS) controller.
+# We look for /dev/sd* devices whose driver is hpsa or cciss.
+# ---------------------------------------------------------------------------
+sub detect_controllers {
+    my %controllers;
+
+    opendir(my $dh, '/sys/block') or die "Cannot open /sys/block: $!\n";
+    my @devs = grep { /^sd[a-z]+$/ } readdir($dh);
+    closedir($dh);
+
+    for my $dev (sort @devs) {
+        # Resolve the device driver via sysfs
+        my $driver_link = "/sys/block/$dev/device/driver";
+        next unless -l $driver_link;
+
+        my $driver_path = readlink($driver_link) // '';
+        my ($driver_name) = $driver_path =~ m{/([^/]+)$};
+        next unless $driver_name && ($driver_name eq 'hpsa' || $driver_name eq 'cciss');
+
+        # Read model from sysfs if available
+        my $model = '';
+        my $model_file = "/sys/block/$dev/device/model";
+        if (open(my $mf, '<', $model_file)) {
+            $model = <$mf>;
+            chomp $model;
+            $model =~ s/^\s+|\s+$//g;
+            close($mf);
+        }
+
+        $controllers{$dev} = {
+            device => $dev,
+            model  => $model,
+            driver => $driver_name,
+        };
+    }
+
+    return \%controllers;
+}
+
+# ---------------------------------------------------------------------------
+# Probe a device for drives behind CCISS by trying cciss,0 through cciss,N
+# until smartctl fails. Max 128 drives per controller.
+# ---------------------------------------------------------------------------
+sub probe_drives {
+    my ($dev) = @_;
+    my @drives;
+
+    for my $port (0 .. 127) {
+        my @output = eval {
+            run_cmd($SMARTCTL, '-i', "/dev/$dev", '-d', "cciss,$port");
+        };
+        last if $@;
+
+        my $out_text = join("\n", @output);
+
+        # If smartctl says "No such device" or returns garbage, stop probing
+        last if $out_text =~ /No such device/i;
+        last if $out_text =~ /INQUIRY failed/i;
+        last if $out_text =~ /Smartctl open device.*failed/i;
+
+        # Check if we got valid device info
+        next unless $out_text =~ /Device Model|Product|Vendor/i;
+
+        my %info = (
+            device     => $dev,
+            cciss_port => $port,
+        );
+
+        # Parse basic info fields
+        if ($out_text =~ /(?:Device Model|Product):\s*(.+)/i) {
+            $info{model} = $1;
+            $info{model} =~ s/^\s+|\s+$//g;
+        }
+        if ($out_text =~ /Serial [Nn]umber:\s*(.+)/i) {
+            $info{serial} = $1;
+            $info{serial} =~ s/^\s+|\s+$//g;
+        }
+        if ($out_text =~ /User Capacity:\s*(.+)/i) {
+            $info{capacity} = $1;
+            $info{capacity} =~ s/^\s+|\s+$//g;
+        }
+        if ($out_text =~ /Firmware Version:\s*(.+)/i) {
+            $info{firmware} = $1;
+            $info{firmware} =~ s/^\s+|\s+$//g;
+        }
+        if ($out_text =~ /Rotation Rate:\s*(.+)/i) {
+            $info{rotation_rate} = $1;
+            $info{rotation_rate} =~ s/^\s+|\s+$//g;
+        }
+        if ($out_text =~ /Form Factor:\s*(.+)/i) {
+            $info{form_factor} = $1;
+            $info{form_factor} =~ s/^\s+|\s+$//g;
+        }
+
+        push @drives, \%info;
+    }
+
+    return \@drives;
+}
+
+# ---------------------------------------------------------------------------
+# Get S.M.A.R.T. health + overview for a drive
+# ---------------------------------------------------------------------------
+sub get_drive_health {
+    my ($dev, $port) = @_;
+
+    my @output = eval {
+        run_cmd($SMARTCTL, '-H', '-A', "/dev/$dev", '-d', "cciss,$port");
+    };
+    return { health => 'UNKNOWN' } if $@;
+
+    my $out_text = join("\n", @output);
+    my %result = (health => 'UNKNOWN');
+
+    # Parse overall health
+    if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
+        my $status = $1;
+        $status =~ s/^\s+|\s+$//g;
+        $result{health} = $status;
+    }
+
+    # Parse temperature
+    if ($out_text =~ /(?:Temperature_Celsius|Current Drive Temperature).*?(\d+)\s*(?:\(|$)/mi) {
+        $result{temperature} = "${1}°C";
+    } elsif ($out_text =~ /194\s+Temperature_Celsius\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/i) {
+        $result{temperature} = "${1}°C";
+    }
+
+    # Parse power-on hours
+    if ($out_text =~ /(?:Power_On_Hours|number of hours powered up).*?(\d[\d,]*)/mi) {
+        my $hours = $1;
+        $hours =~ s/,//g;
+        $result{power_on_hours} = $hours;
+    }
+
+    # Parse reallocated sectors
+    if ($out_text =~ /Reallocated_Sector_Ct.*?(\d+)\s*$/mi) {
+        $result{reallocated_sectors} = $1;
+    }
+
+    return \%result;
+}
+
+# ---------------------------------------------------------------------------
+# Get full S.M.A.R.T. detail for a specific drive
+# ---------------------------------------------------------------------------
+sub get_drive_detail {
+    my ($dev, $port) = @_;
+
+    my @output = eval {
+        run_cmd($SMARTCTL, '-a', "/dev/$dev", '-d', "cciss,$port");
+    };
+    die "Failed to query smartctl for /dev/$dev cciss,$port: $@\n" if $@;
+
+    my $out_text = join("\n", @output);
+    my %result = (
+        health     => 'UNKNOWN',
+        raw_output => $out_text,
+    );
+
+    # --- Parse device info section ---
+    my %info;
+    for my $field (
+        'Device Model', 'Product', 'Vendor', 'Serial Number',
+        'Firmware Version', 'User Capacity', 'Sector Size',
+        'Rotation Rate', 'Form Factor', 'Device is',
+        'ATA Version is', 'SATA Version is', 'Transport protocol',
+        'Logical Unit id',
+    ) {
+        if ($out_text =~ /^\Q$field\E:\s*(.+)$/mi) {
+            my $val = $1;
+            $val =~ s/^\s+|\s+$//g;
+            my $key = lc($field);
+            $key =~ s/\s+/_/g;
+            $info{$key} = $val;
+        }
+    }
+    $result{info} = \%info;
+
+    # --- Parse health ---
+    if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
+        my $h = $1;
+        $h =~ s/^\s+|\s+$//g;
+        $result{health} = $h;
+    }
+
+    # --- Parse S.M.A.R.T. attributes ---
+    my @attributes;
+    # ATA-style attributes table
+    while ($out_text =~ /^\s*(\d+)\s+(\S+)\s+(0x[\da-fA-F]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/mg) {
+        push @attributes, {
+            id         => int($1),
+            name       => $2,
+            flag       => $3,
+            value      => int($4),
+            worst      => int($5),
+            threshold  => int($6),
+            type       => $7,
+            updated    => $8,
+            when_failed => $9,
+            raw_value  => $10,
+        };
+    }
+
+    # SAS-style: look for structured data lines (vendor-specific)
+    unless (@attributes) {
+        # Try to parse SAS/SCSI-style parameters
+        while ($out_text =~ /^\s*(read|write|verify):\s+(.+)$/mgi) {
+            push @attributes, {
+                name      => "Error counter: $1",
+                raw_value => $2,
+            };
+        }
+
+        # Parse key SAS SMART fields
+        for my $pattern (
+            ['Current Drive Temperature',     'temperature'],
+            ['Drive Trip Temperature',        'trip_temperature'],
+            ['Accumulated start-stop cycles', 'start_stop_cycles'],
+            ['Accumulated load-unload cycles','load_unload_cycles'],
+            ['Elements in grown defect list', 'grown_defect_list'],
+            ['number of hours powered up',    'power_on_hours'],
+        ) {
+            if ($out_text =~ /^\s*\Q$pattern->[0]\E[:\s]+(\S+)/mi) {
+                push @attributes, {
+                    name      => $pattern->[1],
+                    raw_value => $1,
+                };
+            }
+        }
+    }
+    $result{attributes} = \@attributes;
+
+    # --- Parse self-test log ---
+    my @tests;
+    while ($out_text =~ /^#\s*(\d+)\s+(.+?)\s{2,}(.+?)\s{2,}\s*(\d+)%\s+(\d+)\s+(.*?)$/mg) {
+        push @tests, {
+            num          => int($1),
+            description  => $2,
+            status       => $3,
+            remaining    => int($4),
+            lifetime_h   => int($5),
+            lba_of_error => $6 || '-',
+        };
+    }
+    $result{self_tests} = \@tests;
+
+    return \%result;
+}
+
+# ---------------------------------------------------------------------------
+# Main dispatch
+# ---------------------------------------------------------------------------
+my $mode = $ARGV[0] // 'summary';
+
+if ($mode eq 'controllers') {
+    my $ctrls = detect_controllers();
+    my @list = values %$ctrls;
+    print encode_json(\@list);
+}
+elsif ($mode eq 'drives') {
+    my $ctrls = detect_controllers();
+    my @all_drives;
+    for my $dev (sort keys %$ctrls) {
+        my $drives = probe_drives($dev);
+        for my $d (@$drives) {
+            my $health = get_drive_health($d->{device}, $d->{cciss_port});
+            $d->{$_} = $health->{$_} for keys %$health;
+            push @all_drives, $d;
+        }
+    }
+    print encode_json(\@all_drives);
+}
+elsif ($mode eq 'detail') {
+    my $dev  = $ARGV[1] // die "Usage: smart-raid-scan detail <device> <port>\n";
+    my $port = $ARGV[2] // die "Usage: smart-raid-scan detail <device> <port>\n";
+
+    # Strict input validation
+    die "Invalid device name\n" unless $dev =~ /^[a-z]{2,4}[a-z]$/;
+    die "Invalid port number\n" unless $port =~ /^\d+$/ && $port >= 0 && $port <= 127;
+
+    my $detail = get_drive_detail($dev, $port);
+    print encode_json($detail);
+}
+elsif ($mode eq 'summary') {
+    my $ctrls = detect_controllers();
+    my @ctrl_list = values %$ctrls;
+
+    my @all_drives;
+    for my $dev (sort keys %$ctrls) {
+        my $drives = probe_drives($dev);
+        for my $d (@$drives) {
+            my $health = get_drive_health($d->{device}, $d->{cciss_port});
+            $d->{$_} = $health->{$_} for keys %$health;
+            push @all_drives, $d;
+        }
+    }
+
+    print encode_json({
+        controllers => \@ctrl_list,
+        drives      => \@all_drives,
+    });
+}
+else {
+    die "Unknown mode: $mode\nUsage: smart-raid-scan [summary|controllers|drives|detail <dev> <port>]\n";
+}
+
+exit 0;

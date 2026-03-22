@@ -1,0 +1,31 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	# Install Perl API module
+	install -d $(CURDIR)/debian/pve-smartraidmon/usr/share/perl5/PVE/API2
+	install -m 0644 src/PVE/API2/SmartRaidMon.pm \
+		$(CURDIR)/debian/pve-smartraidmon/usr/share/perl5/PVE/API2/SmartRaidMon.pm
+
+	# Install the smartctl wrapper script
+	install -d $(CURDIR)/debian/pve-smartraidmon/usr/libexec/pve-smartraidmon
+	install -m 0755 src/bin/smart-raid-scan \
+		$(CURDIR)/debian/pve-smartraidmon/usr/libexec/pve-smartraidmon/smart-raid-scan
+
+	# Install the JavaScript GUI component
+	install -d $(CURDIR)/debian/pve-smartraidmon/usr/share/pve-manager/js
+	install -m 0644 src/www/SmartRaidMon.js \
+		$(CURDIR)/debian/pve-smartraidmon/usr/share/pve-manager/js/SmartRaidMon.js
+
+	# Install the API registration hook
+	install -d $(CURDIR)/debian/pve-smartraidmon/usr/share/pve-smartraidmon
+	install -m 0644 src/pve-api-hook.pl \
+		$(CURDIR)/debian/pve-smartraidmon/usr/share/pve-smartraidmon/pve-api-hook.pl
+
+override_dh_auto_build:
+	# nothing to build
+
+override_dh_auto_test:
+	# skip tests

@@ -222,4 +222,34 @@ __PACKAGE__->register_method({
     },
 });
 
+# ---------------------------------------------------------------------------
+# Self-registration with PVE node API
+#
+# In PVE 8.x, /nodes/{node}/* sub-routes are handled by
+# PVE::API2::Nodes::Nodeinfo (defined inside Nodes.pm).
+# We register as a subclass there so our endpoints appear at
+# /nodes/{node}/smartraidmon/*
+# ---------------------------------------------------------------------------
+{
+    my $registered = 0;
+    for my $class (qw(
+        PVE::API2::Nodes::Nodeinfo
+        PVE::API2::Nodes::NodeInfo
+    )) {
+        next unless $class->can('register_method');
+        eval {
+            $class->register_method({
+                subclass => __PACKAGE__,
+                path => 'smartraidmon',
+            });
+        };
+        if (!$@) {
+            $registered = 1;
+            last;
+        }
+    }
+    warn "PVE::API2::SmartRaidMon: could not register API endpoint: $@\n"
+        unless $registered;
+}
+
 1;

@@ -133,9 +133,10 @@ sub probe_drives {
     my $consecutive_fail = 0;
 
     for my $port (0 .. 127) {
-        # Single smartctl call: -i (info) + -H (health) + -A (attributes)
+        # Single smartctl call with -a (all info) — gets device info, health,
+        # attributes, error log, self-test log in one pass.
         my @output = eval {
-            run_cmd($SMARTCTL, '-i', '-H', '-A', "/dev/$dev", '-d', "cciss,$port");
+            run_cmd($SMARTCTL, '-a', "/dev/$dev", '-d', "cciss,$port");
         };
         if ($@) {
             $consecutive_fail++;
@@ -221,13 +222,18 @@ sub probe_drives {
         }
 
         # Power-on hours
-        if ($out_text =~ /^\s*9\s+Power_On_Hours\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d[\d,]*)/mi) {
+        # ATA: "  9 Power_On_Hours  ...  99681" — grab last number on the line
+        if ($out_text =~ /^\s*9\s+Power_On_Hours\b.*\s(\d[\d,]*)\s*$/mi) {
             my $h = $1; $h =~ s/,//g;
             $info{power_on_hours} = $h;
-        } elsif ($out_text =~ /Accumulated power on time.*?(\d[\d,]+):\d+/mi) {
+        }
+        # SAS: "Accumulated power on time, hours:minutes 62011:14"
+        elsif ($out_text =~ /Accumulated power on time.*?(\d[\d,]+):\d+/mi) {
             my $h = $1; $h =~ s/,//g;
             $info{power_on_hours} = $h;
-        } elsif ($out_text =~ /number of hours powered up\s*=\s*(\d[\d,]*)/mi) {
+        }
+        # SAS (Seagate): "number of hours powered up = 11280.67"
+        elsif ($out_text =~ /number of hours powered up\s*=\s*(\d[\d,]*)/mi) {
             my $h = $1; $h =~ s/,//g;
             $info{power_on_hours} = $h;
         }

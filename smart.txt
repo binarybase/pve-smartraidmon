@@ -1,0 +1,231 @@
+root@stor:~/pve-smartraidmon# smartctl -a /dev/sda -d cciss,0
+smartctl 7.3 2022-02-28 r5338 [x86_64-linux-6.8.12-18-pve] (local build)
+Copyright (C) 2002-22, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF INFORMATION SECTION ===
+Vendor:               TOSHIBA
+Product:              MG03SCA400
+Revision:             DG09
+Compliance:           SPC-4
+User Capacity:        4,000,787,030,016 bytes [4.00 TB]
+Logical block size:   512 bytes
+Rotation Rate:        7200 rpm
+Form Factor:          3.5 inches
+Logical Unit id:      0x5000039638d04829
+Serial number:        45C0A28HFVL8
+Device type:          disk
+Transport protocol:   SAS (SPL-4)
+Local Time is:        Sun Mar 22 17:18:35 2026 CET
+SMART support is:     Available - device has SMART capability.
+SMART support is:     Enabled
+Temperature Warning:  Disabled or Not Supported
+
+=== START OF READ SMART DATA SECTION ===
+SMART Health Status: OK
+
+Current Drive Temperature:     38 C
+Drive Trip Temperature:        65 C
+
+Accumulated power on time, hours:minutes 62011:14
+Manufactured in week 15 of year 2015
+Specified cycle count over device lifetime:  50000
+Accumulated start-stop cycles:  62
+Specified load-unload count over device lifetime:  600000
+Accumulated load-unload cycles:  426
+Elements in grown defect list: 0
+
+Error counter log:
+           Errors Corrected by           Total   Correction     Gigabytes    Total
+               ECC          rereads/    errors   algorithm      processed    uncorrected
+           fast | delayed   rewrites  corrected  invocations   [10^9 bytes]  errors
+read:          0     1072      1072      1072       1074    9827524.672           0
+write:         0       33        33        33         45     399280.508           0
+verify:        0      170       170       170        170    1420914.711           0
+
+Non-medium error count:       74
+
+SMART Self-test log
+Num  Test              Status                 segment  LifeTime  LBA_first_err [SK ASC ASQ]
+     Description                              number   (hours)
+# 1  Background short  Completed                  64      14                 - [-   -    -]
+# 2  Reserved(7)       Completed                  64      14                 - [-   -    -]
+# 3  Background short  Completed                  64      13                 - [-   -    -]
+# 4  Reserved(7)       Aborted (by user command)  64       1                 - [-   -    -]
+# 5  Background short  Completed                  64       1                 - [-   -    -]
+
+Long (extended) Self-test duration
+
+root@stor:~/pve-smartraidmon# smartctl -a /dev/sda -d cciss,1
+smartctl 7.3 2022-02-28 r5338 [x86_64-linux-6.8.12-18-pve] (local build)
+Copyright (C) 2002-22, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF INFORMATION SECTION ===
+Vendor:               SEAGATE
+Product:              ST4000NM0023
+Revision:             GS0F
+Compliance:           SPC-4
+User Capacity:        4,000,787,030,016 bytes [4.00 TB]
+Logical block size:   512 bytes
+LU is fully provisioned
+Rotation Rate:        7200 rpm
+Form Factor:          3.5 inches
+Logical Unit id:      0x5000c500585cb01f
+Serial number:        Z1Z3KQLW
+Device type:          disk
+Transport protocol:   SAS (SPL-4)
+Local Time is:        Sun Mar 22 17:18:54 2026 CET
+SMART support is:     Available - device has SMART capability.
+SMART support is:     Enabled
+Temperature Warning:  Disabled or Not Supported
+
+=== START OF READ SMART DATA SECTION ===
+SMART Health Status: OK
+
+Current Drive Temperature:     39 C
+Drive Trip Temperature:        60 C
+
+Accumulated power on time, hours:minutes 11280:40
+Manufactured in week 11 of year 2014
+Specified cycle count over device lifetime:  10000
+Accumulated start-stop cycles:  126
+Specified load-unload count over device lifetime:  300000
+Accumulated load-unload cycles:  4541
+Elements in grown defect list: 108
+
+Vendor (Seagate Cache) information
+  Blocks sent to initiator = 98947216
+  Blocks received from initiator = 3155315047
+  Blocks read from cache and sent to initiator = 1150116509
+  Number of read and write commands whose size <= segment size = 2679377131
+  Number of read and write commands whose size > segment size = 18528
+
+Vendor (Seagate/Hitachi) factory information
+  number of hours powered up = 11280.67
+  number of minutes until next internal SMART test = 50
+
+Error counter log:
+           Errors Corrected by           Total   Correction     Gigabytes    Total
+               ECC          rereads/    errors   algorithm      processed    uncorrected
+           fast | delayed   rewrites  corrected  invocations   [10^9 bytes]  errors
+read:   1182805978      257         0  1182806235        257    3183975.473           0
+write:         0        0        22        22         22     164068.723           0
+verify: 546722328        0         0  546722328          0         97.654           0
+
+Non-medium error count:       55
+
+SMART Self-test log
+Num  Test              Status                 segment  LifeTime  LBA_first_err [SK ASC ASQ]
+     Description                              number   (hours)
+# 1  Background short  Completed                  64    2797                 - [-   -    -]
+# 2  Background short  Completed                  64    2792                 - [-   -    -]
+# 3  Reserved(7)       Completed                  48       3                 - [-   -    -]
+# 4  Background short  Completed                  64       0                 - [-   -    -]
+
+Long (extended) Self-test duration: 32700 seconds [9.1 hours]
+
+
+root@stor:~/pve-smartraidmon# smartctl -a /dev/sda -d cciss,2
+smartctl 7.3 2022-02-28 r5338 [x86_64-linux-6.8.12-18-pve] (local build)
+Copyright (C) 2002-22, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF INFORMATION SECTION ===
+Model Family:     Seagate Constellation ES (SATA 6Gb/s)
+Device Model:     MB1000GCEEK
+Serial Number:    WCAW35153468
+LU WWN Device Id: 5 0014ee 25d4d2068
+Firmware Version: HPG1
+User Capacity:    1,000,204,886,016 bytes [1.00 TB]
+Sector Size:      512 bytes logical/physical
+Rotation Rate:    7200 rpm
+Form Factor:      3.5 inches
+Device is:        In smartctl database 7.3/5319
+ATA Version is:   ATA8-ACS T13/1699-D revision 6
+SATA Version is:  SATA 3.0, 6.0 Gb/s (current: 6.0 Gb/s)
+Local Time is:    Sun Mar 22 17:19:11 2026 CET
+SMART support is: Available - device has SMART capability.
+SMART support is: Enabled
+
+=== START OF READ SMART DATA SECTION ===
+SMART Status not supported: Incomplete response, ATA output registers missing
+SMART overall-health self-assessment test result: PASSED
+Warning: This result is based on an Attribute check.
+See vendor-specific Attribute list for marginal Attributes.
+
+General SMART Values:
+Offline data collection status:  (0x84)	Offline data collection activity
+					was suspended by an interrupting command from host.
+					Auto Offline Data Collection: Enabled.
+Self-test execution status:      (   0)	The previous self-test routine completed
+					without error or no self-test has ever 
+					been run.
+Total time to complete Offline 
+data collection: 		(16860) seconds.
+Offline data collection
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+					Auto Offline data collection on/off support.
+					Suspend Offline collection upon new
+					command.
+					Offline surface scan supported.
+					Self-test supported.
+					Conveyance Self-test supported.
+					Selective Self-test supported.
+SMART capabilities:            (0x0003)	Saves SMART data before entering
+					power-saving mode.
+					Supports SMART auto save timer.
+Error logging capability:        (0x01)	Error logging supported.
+					General Purpose Logging supported.
+Short self-test routine 
+recommended polling time: 	 (   2) minutes.
+Extended self-test routine
+recommended polling time: 	 ( 166) minutes.
+Conveyance self-test routine
+recommended polling time: 	 (   5) minutes.
+SCT capabilities: 	       (0x303d)	SCT Status supported.
+					SCT Error Recovery Control supported.
+					SCT Feature Control supported.
+					SCT Data Table supported.
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x002f   200   200   051    Pre-fail  Always       -       14
+  3 Spin_Up_Time            0x0027   175   171   021    Pre-fail  Always       -       4233
+  4 Start_Stop_Count        0x0032   098   098   000    Old_age   Always       -       2533
+  5 Reallocated_Sector_Ct   0x0033   200   200   140    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x002f   200   200   051    Pre-fail  Always       -       0
+  9 Power_On_Hours          0x0032   001   001   000    Old_age   Always       -       99681
+ 10 Spin_Retry_Count        0x0033   100   100   051    Pre-fail  Always       -       0
+ 11 Calibration_Retry_Count 0x0033   100   100   051    Pre-fail  Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       255
+180 Unknown_HDD_Attribute   0x002f   200   200   100    Pre-fail  Always       -       0
+184 End-to-End_Error        0x0033   100   100   097    Pre-fail  Always       -       0
+187 Reported_Uncorrect      0x0032   100   100   000    Old_age   Always       -       0
+188 Command_Timeout         0x0032   100   100   000    Old_age   Always       -       0
+190 Airflow_Temperature_Cel 0x0022   064   034   045    Old_age   Always   In_the_past 36
+192 Power-Off_Retract_Count 0x0032   200   200   000    Old_age   Always       -       217
+193 Load_Cycle_Count        0x0032   200   200   000    Old_age   Always       -       2359
+194 Temperature_Celsius     0x0022   111   081   000    Old_age   Always       -       36
+195 Hardware_ECC_Recovered  0x0036   200   200   000    Old_age   Always       -       0
+196 Reallocated_Event_Count 0x0032   200   200   000    Old_age   Always       -       0
+197 Current_Pending_Sector  0x0032   200   200   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0030   200   200   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x0032   200   200   000    Old_age   Always       -       0
+200 Multi_Zone_Error_Rate   0x0008   200   200   000    Old_age   Offline      -       1
+
+SMART Error Log Version: 1
+No Errors Logged
+
+SMART Self-test log structure revision number 1
+Num  Test_Description    Status                  Remaining  LifeTime(hours)  LBA_of_first_error
+# 1  Short offline       Completed without error       00%     52970         -
+
+SMART Selective self-test log data structure revision number 1
+ SPAN  MIN_LBA  MAX_LBA  CURRENT_TEST_STATUS
+    1        0        0  Not_testing
+    2        0        0  Not_testing
+    3        0        0  Not_testing
+    4        0        0  Not_testing
+    5        0        0  Not_testing
+Selective self-test flags (0x0):
+  After scanning selected spans, do NOT read-scan remainder of disk.
+If Selective self-test is pending on power-up, resume after 0 minute delay.

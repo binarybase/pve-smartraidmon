@@ -241,15 +241,33 @@ sub get_drive_health {
     }
 
     # Parse power-on hours
-    if ($out_text =~ /(?:Power_On_Hours|number of hours powered up).*?(\d[\d,]*)/mi) {
+    # ATA: attribute row "  9 Power_On_Hours ... 99681" — match last number on the line
+    if ($out_text =~ /^\s*9\s+Power_On_Hours\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d[\d,]*)/mi) {
+        my $hours = $1;
+        $hours =~ s/,//g;
+        $result{power_on_hours} = $hours;
+    }
+    # SAS: "Accumulated power on time, hours:minutes 62011:14"
+    elsif ($out_text =~ /Accumulated power on time.*?(\d[\d,]+):\d+/mi) {
+        my $hours = $1;
+        $hours =~ s/,//g;
+        $result{power_on_hours} = $hours;
+    }
+    # SAS (Seagate): "number of hours powered up = 11280.67"
+    elsif ($out_text =~ /number of hours powered up\s*=\s*(\d[\d,]*)/mi) {
         my $hours = $1;
         $hours =~ s/,//g;
         $result{power_on_hours} = $hours;
     }
 
-    # Parse reallocated sectors
+    # Parse reallocated sectors (ATA only)
     if ($out_text =~ /Reallocated_Sector_Ct.*?(\d+)\s*$/mi) {
         $result{reallocated_sectors} = $1;
+    }
+
+    # SAS: grown defect list (equivalent of reallocated sectors)
+    if ($out_text =~ /Elements in grown defect list:\s*(\d+)/i) {
+        $result{grown_defect_list} = $1;
     }
 
     return \%result;

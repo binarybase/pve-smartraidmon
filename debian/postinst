@@ -6,45 +6,87 @@ case "$1" in
         # Register API route in PVE::API2::Nodes
         NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
         if [ -f "$NODES_PM" ]; then
-            # Clean any previous registration first
+            cp "$NODES_PM" "${NODES_PM}.smartraid-bak"
+
             sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
             sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-            perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
 
-            # Insert registration after PVE::API2::Disks registration block
-            # (in the PVE::API2::Nodes::Nodeinfo package context).
-            perl -e '
+            # Remove old SmartRaidMon blocks (paren-depth aware)
+            perl - "$NODES_PM" <<'CLEANUP_PERL'
+                use strict; use warnings;
+                my $file = shift;
+                open my $fh, "<", $file or die "Cannot read $file: $!\n";
+                my @lines = <$fh>; close $fh;
+                my @out; my $i = 0;
+                while ($i <= $#lines) {
+                    if ($lines[$i] =~ /__PACKAGE__->register_method\s*\(/) {
+                        my @block = (); my $depth = 0;
+                        while ($i <= $#lines) {
+                            push @block, $lines[$i];
+                            for my $c (split //, $lines[$i]) {
+                                $depth++ if $c eq '(';
+                                $depth-- if $c eq ')';
+                            }
+                            $i++; last if $depth <= 0;
+                        }
+                        if (join('', @block) =~ /SmartRaidMon/) {
+                            while ($i <= $#lines && $lines[$i] =~ /^\s*$/) { $i++; }
+                            next;
+                        }
+                        push @out, @block;
+                    } else { push @out, $lines[$i]; $i++; }
+                }
+                open my $ofh, ">", $file or die;
+                print $ofh @out; close $ofh;
+CLEANUP_PERL
+
+            # Insert after Disks block (paren-depth aware)
+            perl - "$NODES_PM" <<'INSERT_PERL'
                 use strict; use warnings;
                 my $file = shift;
                 open my $fh, "<", $file or die "Cannot read $file: $!\n";
                 my @lines = <$fh>; close $fh;
                 my $insert_after = -1;
                 for my $i (0 .. $#lines) {
-                    if ($lines[$i] =~ /subclass\s*=>\s*"PVE::API2::Disks"/) {
-                        for my $j ($i .. $#lines) {
-                            if ($lines[$j] =~ /^\}\);/) {
-                                $insert_after = $j; last;
+                    if ($lines[$i] =~ /subclass\s*=>\s*["']PVE::API2::Disks["']/) {
+                        my $bs = $i;
+                        for (my $k=$i; $k>=0; $k--) {
+                            if ($lines[$k] =~ /__PACKAGE__->register_method\s*\(/) { $bs=$k; last; }
+                        }
+                        my $depth = 0;
+                        for my $j ($bs .. $#lines) {
+                            for my $c (split //, $lines[$j]) {
+                                $depth++ if $c eq '('; $depth-- if $c eq ')';
                             }
+                            if ($depth <= 0) { $insert_after = $j; last; }
                         }
                         last;
                     }
                 }
                 exit 1 if $insert_after < 0;
-                open my $out, ">", $file or die "Cannot write $file: $!\n";
+                open my $ofh, ">", $file or die;
                 for my $i (0 .. $#lines) {
-                    print $out $lines[$i];
+                    print $ofh $lines[$i];
                     if ($i == $insert_after) {
-                        print $out "\n__PACKAGE__->register_method({\n";
-                        print $out "    subclass => \"PVE::API2::SmartRaidMon\",\n";
-                        print $out "    path => \"smartraidmon\",\n";
-                        print $out "});\n";
+                        print $ofh "\n";
+                        print $ofh "__PACKAGE__->register_method ({\n";
+                        print $ofh "   subclass => \"PVE::API2::SmartRaidMon\",\n";
+                        print $ofh "   path => 'smartraidmon',\n";
+                        print $ofh "});\n";
                     }
                 }
-                close $out;
-            ' "$NODES_PM"
-            # Add use statement after use PVE::API2::Disks line
+                close $ofh;
+INSERT_PERL
+
             if ! grep -q "use PVE::API2::SmartRaidMon;" "$NODES_PM"; then
                 sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+            fi
+
+            if perl -c "$NODES_PM" 2>/dev/null; then
+                rm -f "${NODES_PM}.smartraid-bak"
+            else
+                cp "${NODES_PM}.smartraid-bak" "$NODES_PM"
+                rm -f "${NODES_PM}.smartraid-bak"
             fi
         fi
 

@@ -16,7 +16,43 @@ NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
 if [ -f "$NODES_PM" ]; then
     sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
     sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-    perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
+    # Remove register_method blocks containing SmartRaidMon
+    # Uses paren-depth tracking to handle nested structures properly
+    perl - "$NODES_PM" <<'CLEANUP_PERL'
+        use strict; use warnings;
+        my $file = shift;
+        open my $fh, "<", $file or die "Cannot read $file: $!\n";
+        my @lines = <$fh>; close $fh;
+
+        my @out;
+        my $i = 0;
+        while ($i <= $#lines) {
+            if ($lines[$i] =~ /__PACKAGE__->register_method\s*\(/) {
+                my @block = ();
+                my $depth = 0;
+                while ($i <= $#lines) {
+                    push @block, $lines[$i];
+                    for my $c (split //, $lines[$i]) {
+                        $depth++ if $c eq '(';
+                        $depth-- if $c eq ')';
+                    }
+                    $i++;
+                    last if $depth <= 0;
+                }
+                my $block_text = join('', @block);
+                if ($block_text =~ /SmartRaidMon/) {
+                    while ($i <= $#lines && $lines[$i] =~ /^\s*$/) { $i++; }
+                    next;
+                }
+                push @out, @block;
+            } else {
+                push @out, $lines[$i];
+                $i++;
+            }
+        }
+        open my $ofh, ">", $file or die "Cannot write $file: $!\n";
+        print $ofh @out; close $ofh;
+CLEANUP_PERL
     echo "       Cleaned."
 fi
 

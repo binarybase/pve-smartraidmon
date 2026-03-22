@@ -8,7 +8,33 @@ case "$1" in
         if [ -f "$NODES_PM" ]; then
             sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
             sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
-            perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
+            perl - "$NODES_PM" <<'CLEANUP_PERL'
+                use strict; use warnings;
+                my $file = shift;
+                open my $fh, "<", $file or die "Cannot read $file: $!\n";
+                my @lines = <$fh>; close $fh;
+                my @out; my $i = 0;
+                while ($i <= $#lines) {
+                    if ($lines[$i] =~ /__PACKAGE__->register_method\s*\(/) {
+                        my @block = (); my $depth = 0;
+                        while ($i <= $#lines) {
+                            push @block, $lines[$i];
+                            for my $c (split //, $lines[$i]) {
+                                $depth++ if $c eq '(';
+                                $depth-- if $c eq ')';
+                            }
+                            $i++; last if $depth <= 0;
+                        }
+                        if (join('', @block) =~ /SmartRaidMon/) {
+                            while ($i <= $#lines && $lines[$i] =~ /^\s*$/) { $i++; }
+                            next;
+                        }
+                        push @out, @block;
+                    } else { push @out, $lines[$i]; $i++; }
+                }
+                open my $ofh, ">", $file or die;
+                print $ofh @out; close $ofh;
+CLEANUP_PERL
         fi
 
         # Remove our script tag from PVE index

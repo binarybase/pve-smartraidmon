@@ -7,7 +7,6 @@ PREFIX  = /usr
 PERL_MODDIR   = $(PREFIX)/share/perl5
 JS_DIR        = $(PREFIX)/share/pve-manager/js
 LIBEXEC_DIR   = $(PREFIX)/libexec/pve-smartraidmon
-SHARE_DIR     = $(PREFIX)/share/pve-smartraidmon
 
 .PHONY: all install clean deb
 
@@ -29,11 +28,6 @@ install:
 	install -d $(DESTDIR)$(JS_DIR)
 	install -m 0644 src/www/SmartRaidMon.js \
 		$(DESTDIR)$(JS_DIR)/SmartRaidMon.js
-
-	# API hook
-	install -d $(DESTDIR)$(SHARE_DIR)
-	install -m 0644 src/pve-api-hook.pl \
-		$(DESTDIR)$(SHARE_DIR)/pve-api-hook.pl
 
 clean:
 	rm -rf debian/pve-smartraidmon debian/*.debhelper* debian/*.substvars \

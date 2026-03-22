@@ -3,14 +3,17 @@ set -e
 
 case "$1" in
     configure)
-        # Register the JS file with Proxmox VE's web UI
-        JS_FILE="/usr/share/pve-manager/js/SmartRaidMon.js"
-        HOOK_CONF="/etc/pve-smartraidmon.conf"
-
-        # Create symlink in the PVE js directory if not present
-        if [ ! -L "/usr/share/javascript/proxmox-widget-toolkit/proxmox-smart-raid-mon.js" ]; then
-            ln -sf "$JS_FILE" \
-                /usr/share/javascript/proxmox-widget-toolkit/proxmox-smart-raid-mon.js 2>/dev/null || true
+        # Register API route in PVE::API2::Nodes
+        NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
+        if [ -f "$NODES_PM" ] && ! grep -q "PVE::API2::SmartRaidMon" "$NODES_PM"; then
+            LAST_USE_LINE=$(grep -n '^use PVE::API2::' "$NODES_PM" | tail -1 | cut -d: -f1)
+            if [ -n "$LAST_USE_LINE" ]; then
+                sed -i "${LAST_USE_LINE}a use PVE::API2::SmartRaidMon;" "$NODES_PM"
+            else
+                sed -i '/^use strict;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+            fi
+            sed -i '/^1;$/i \\
+__PACKAGE__->register_method ({\n    subclass => "PVE::API2::SmartRaidMon",\n    path => "smartraidmon",\n});' "$NODES_PM"
         fi
 
         # Patch the PVE manager index to include our JS (idempotent)

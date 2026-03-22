@@ -31,27 +31,50 @@ if ! command -v smartctl &>/dev/null; then
     apt-get update -qq && apt-get install -y -qq smartmontools
 fi
 
-echo "[1/5] Installing Perl API module..."
+echo "[1/6] Installing Perl API module..."
 install -d /usr/share/perl5/PVE/API2
 install -m 0644 "$SCRIPT_DIR/src/PVE/API2/SmartRaidMon.pm" \
     /usr/share/perl5/PVE/API2/SmartRaidMon.pm
 
-echo "[2/5] Installing smartctl scanner..."
+echo "[2/6] Installing smartctl scanner..."
 install -d /usr/libexec/pve-smartraidmon
 install -m 0755 "$SCRIPT_DIR/src/bin/smart-raid-scan" \
     /usr/libexec/pve-smartraidmon/smart-raid-scan
 
-echo "[3/5] Installing JavaScript GUI..."
+echo "[3/6] Installing JavaScript GUI..."
 install -d /usr/share/pve-manager/js
 install -m 0644 "$SCRIPT_DIR/src/www/SmartRaidMon.js" \
     /usr/share/pve-manager/js/SmartRaidMon.js
 
-echo "[4/5] Installing API hook..."
-install -d /usr/share/pve-smartraidmon
-install -m 0644 "$SCRIPT_DIR/src/pve-api-hook.pl" \
-    /usr/share/pve-smartraidmon/pve-api-hook.pl
+echo "[4/6] Registering API endpoint in PVE::API2::Nodes..."
+NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
+SRAID_MARKER="PVE::API2::SmartRaidMon"
+if [ -f "$NODES_PM" ]; then
+    if ! grep -q "$SRAID_MARKER" "$NODES_PM"; then
+        # Add 'use' statement after the last existing 'use PVE::API2::' line
+        LAST_USE_LINE=$(grep -n '^use PVE::API2::' "$NODES_PM" | tail -1 | cut -d: -f1)
+        if [ -n "$LAST_USE_LINE" ]; then
+            sed -i "${LAST_USE_LINE}a use PVE::API2::SmartRaidMon;" "$NODES_PM"
+        else
+            # Fallback: add after 'use strict;'
+            sed -i '/^use strict;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+        fi
 
-echo "[5/5] Patching PVE index template..."
+        # Add register_method call before the final '1;'
+        sed -i '/^1;$/i \
+__PACKAGE__->register_method ({\
+    subclass => "PVE::API2::SmartRaidMon",\
+    path => "smartraidmon",\
+});' "$NODES_PM"
+        echo "       API route registered."
+    else
+        echo "       API route already registered."
+    fi
+else
+    echo "WARNING: $NODES_PM not found — API will not work."
+fi
+
+echo "[5/6] Patching PVE index template..."
 INDEX_FILE="/usr/share/pve-manager/index.html.tpl"
 MARKER="SmartRaidMon.js"
 if ! grep -q "$MARKER" "$INDEX_FILE"; then
@@ -61,14 +84,13 @@ else
     echo "       Script tag already present."
 fi
 
-echo ""
-echo "Restarting pveproxy..."
+echo "[6/6] Restarting pveproxy..."
 systemctl restart pveproxy
 
 echo ""
 echo "=== Installation complete ==="
 echo ""
 echo "Open the Proxmox web UI and navigate to a node."
-echo "You should see 'Smart Array Monitor' in the node menu."
+echo "You should see 'Smart Array' under Disks in the node tree."
 echo ""
 echo "To uninstall, run: $SCRIPT_DIR/uninstall.sh"

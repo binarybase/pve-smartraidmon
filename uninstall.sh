@@ -11,17 +11,25 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "[1/4] Removing Perl API module..."
+echo "[1/5] Removing API route from PVE::API2::Nodes..."
+NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
+if [ -f "$NODES_PM" ]; then
+    sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
+    # Remove the register_method block (3 lines + closing brace)
+    sed -i '/subclass.*PVE::API2::SmartRaidMon/{ N; N; d; }' "$NODES_PM"
+    sed -i '/^__PACKAGE__->register_method.*SmartRaidMon/,/^});$/d' "$NODES_PM"
+fi
+
+echo "[2/5] Removing Perl API module..."
 rm -f /usr/share/perl5/PVE/API2/SmartRaidMon.pm
 
-echo "[2/4] Removing smartctl scanner..."
+echo "[3/5] Removing smartctl scanner..."
 rm -rf /usr/libexec/pve-smartraidmon
 
-echo "[3/4] Removing JavaScript GUI and API hook..."
+echo "[4/5] Removing JavaScript GUI..."
 rm -f /usr/share/pve-manager/js/SmartRaidMon.js
-rm -rf /usr/share/pve-smartraidmon
 
-echo "[4/4] Removing script tag from PVE index..."
+echo "[5/5] Removing script tag from PVE index..."
 INDEX_FILE="/usr/share/pve-manager/index.html.tpl"
 if [ -f "$INDEX_FILE" ]; then
     sed -i '/SmartRaidMon\.js/d' "$INDEX_FILE"

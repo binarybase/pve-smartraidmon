@@ -55,10 +55,15 @@ if [ -f "$NODES_PM" ]; then
     # Remove any old register_method blocks for SmartRaidMon
     perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
 
-    # Nodes.pm has TWO packages (Nodeinfo and Nodes) and TWO '1;' lines.
-    # The LAST '1;' is in the PVE::API2::Nodes::Nodeinfo package context,
-    # which is where sub-route registrations (disks, qemu, etc.) live.
-    # We insert 'use' + register_method before that last '1;'.
+    # Nodes.pm structure (PVE 8.x):
+    #   Line 1:    package PVE::API2::Nodes::Nodeinfo;
+    #   Lines ~114-210: __PACKAGE__->register_method({ subclass => ..., path => ... })
+    #              for qemu, disks, storage, etc. — all in Nodeinfo context
+    #   Line ~2689: package PVE::API2::Nodes;
+    #   Last line:  });1;   (no standalone "1;")
+    #
+    # We insert our registration right after the Disks subclass registration,
+    # in the Nodeinfo package context alongside all other sub-routes.
     perl -e '
         use strict;
         use warnings;
@@ -67,26 +72,39 @@ if [ -f "$NODES_PM" ]; then
         my @lines = <$fh>;
         close $fh;
 
-        # Find the LAST "1;" line
-        my $last_idx = -1;
+        # Find the Disks registration block to insert after it
+        my $insert_after = -1;
         for my $i (0 .. $#lines) {
-            $last_idx = $i if $lines[$i] =~ /^1;\s*$/;
+            if ($lines[$i] =~ /subclass\s*=>\s*"PVE::API2::Disks"/) {
+                # Find the closing "});" of this block
+                for my $j ($i .. $#lines) {
+                    if ($lines[$j] =~ /^\}\);/) {
+                        $insert_after = $j;
+                        last;
+                    }
+                }
+                last;
+            }
         }
-        die "Could not find terminating 1; in $file\n" if $last_idx < 0;
+        die "Could not find PVE::API2::Disks registration in $file\n" if $insert_after < 0;
 
         open my $out, ">", $file or die "Cannot write $file: $!\n";
         for my $i (0 .. $#lines) {
-            if ($i == $last_idx) {
-                print $out "use PVE::API2::SmartRaidMon;\n";
-                print $out "__PACKAGE__->register_method({\n";
+            print $out $lines[$i];
+            if ($i == $insert_after) {
+                print $out "\n__PACKAGE__->register_method({\n";
                 print $out "    subclass => \"PVE::API2::SmartRaidMon\",\n";
                 print $out "    path => \"smartraidmon\",\n";
-                print $out "});\n\n";
+                print $out "});\n";
             }
-            print $out $lines[$i];
         }
         close $out;
     ' "$NODES_PM"
+
+    # Add 'use' statement after 'use PVE::API2::Disks;'
+    if ! grep -q "use PVE::API2::SmartRaidMon;" "$NODES_PM"; then
+        sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+    fi
 
     # Verify it compiled correctly
     if perl -c "$NODES_PM" 2>/dev/null; then

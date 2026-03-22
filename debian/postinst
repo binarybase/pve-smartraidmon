@@ -11,32 +11,41 @@ case "$1" in
             sed -i '/require PVE::API2::SmartRaidMon;/d' "$NODES_PM"
             perl -0777 -i -pe 's/\n*__PACKAGE__->register_method\s*\(\{[^}]*SmartRaidMon[^}]*\}\);\n*//gs' "$NODES_PM"
 
-            # Add 'use' + register_method before the LAST '1;' in Nodes.pm.
-            # The last '1;' is in the PVE::API2::Nodes::Nodeinfo package
-            # context, where all sub-route registrations live.
+            # Insert registration after PVE::API2::Disks registration block
+            # (in the PVE::API2::Nodes::Nodeinfo package context).
             perl -e '
                 use strict; use warnings;
                 my $file = shift;
                 open my $fh, "<", $file or die "Cannot read $file: $!\n";
                 my @lines = <$fh>; close $fh;
-                my $last_idx = -1;
+                my $insert_after = -1;
                 for my $i (0 .. $#lines) {
-                    $last_idx = $i if $lines[$i] =~ /^1;\s*$/;
+                    if ($lines[$i] =~ /subclass\s*=>\s*"PVE::API2::Disks"/) {
+                        for my $j ($i .. $#lines) {
+                            if ($lines[$j] =~ /^\}\);/) {
+                                $insert_after = $j; last;
+                            }
+                        }
+                        last;
+                    }
                 }
-                exit 1 if $last_idx < 0;
+                exit 1 if $insert_after < 0;
                 open my $out, ">", $file or die "Cannot write $file: $!\n";
                 for my $i (0 .. $#lines) {
-                    if ($i == $last_idx) {
-                        print $out "use PVE::API2::SmartRaidMon;\n";
-                        print $out "__PACKAGE__->register_method({\n";
+                    print $out $lines[$i];
+                    if ($i == $insert_after) {
+                        print $out "\n__PACKAGE__->register_method({\n";
                         print $out "    subclass => \"PVE::API2::SmartRaidMon\",\n";
                         print $out "    path => \"smartraidmon\",\n";
-                        print $out "});\n\n";
+                        print $out "});\n";
                     }
-                    print $out $lines[$i];
                 }
                 close $out;
             ' "$NODES_PM"
+            # Add use statement after use PVE::API2::Disks line
+            if ! grep -q "use PVE::API2::SmartRaidMon;" "$NODES_PM"; then
+                sed -i '/^use PVE::API2::Disks;/a use PVE::API2::SmartRaidMon;' "$NODES_PM"
+            fi
         fi
 
         # Patch the PVE manager index to include our JS (idempotent)

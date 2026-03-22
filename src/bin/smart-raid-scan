@@ -16,6 +16,8 @@ use strict;
 use warnings;
 use JSON;
 
+binmode(STDOUT, ':utf8');
+
 my $SMARTCTL = '/usr/sbin/smartctl';
 
 # ---------------------------------------------------------------------------
@@ -115,28 +117,49 @@ sub detect_controllers {
 }
 
 # ---------------------------------------------------------------------------
-# Probe a device for drives behind CCISS by trying cciss,0 through cciss,N
-# until smartctl fails. Max 128 drives per controller.
+# Probe a device for drives behind CCISS by trying cciss,0 through cciss,N.
+# Stops after 3 consecutive failed ports. Max 128 drives per controller.
 # ---------------------------------------------------------------------------
+
+# Known RAID controller chip models that appear as cciss devices but are not
+# actual physical drives.
+my %CONTROLLER_MODELS = map { lc($_) => 1 } qw(
+    SRCv8x6G SRCv24x6G SRCv4x6G SRCv12x6G
+);
+
 sub probe_drives {
     my ($dev) = @_;
     my @drives;
+    my $consecutive_fail = 0;
 
     for my $port (0 .. 127) {
         my @output = eval {
             run_cmd($SMARTCTL, '-i', "/dev/$dev", '-d', "cciss,$port");
         };
-        last if $@;
+        if ($@) {
+            $consecutive_fail++;
+            last if $consecutive_fail >= 3;
+            next;
+        }
 
         my $out_text = join("\n", @output);
 
-        # If smartctl says "No such device" or returns garbage, stop probing
-        last if $out_text =~ /No such device/i;
-        last if $out_text =~ /INQUIRY failed/i;
-        last if $out_text =~ /Smartctl open device.*failed/i;
+        # If smartctl says "No such device" or returns garbage, count as failure
+        if ($out_text =~ /No such device|INQUIRY failed|Smartctl open device.*failed/i) {
+            $consecutive_fail++;
+            last if $consecutive_fail >= 3;
+            next;
+        }
 
         # Check if we got valid device info
-        next unless $out_text =~ /Device Model|Product|Vendor/i;
+        unless ($out_text =~ /Device Model|Product|Vendor/i) {
+            $consecutive_fail++;
+            last if $consecutive_fail >= 3;
+            next;
+        }
+
+        # Got a valid response — reset failure counter
+        $consecutive_fail = 0;
 
         my %info = (
             device     => $dev,
@@ -148,6 +171,12 @@ sub probe_drives {
             $info{model} = $1;
             $info{model} =~ s/^\s+|\s+$//g;
         }
+
+        # Skip RAID controller chips (they respond to cciss but aren't drives)
+        if ($info{model} && $CONTROLLER_MODELS{lc($info{model})}) {
+            next;
+        }
+
         if ($out_text =~ /Serial [Nn]umber:\s*(.+)/i) {
             $info{serial} = $1;
             $info{serial} =~ s/^\s+|\s+$//g;
@@ -189,18 +218,26 @@ sub get_drive_health {
     my $out_text = join("\n", @output);
     my %result = (health => 'UNKNOWN');
 
-    # Parse overall health
+    # Parse overall health — ATA and SAS use different formats
+    # ATA:  "SMART overall-health self-assessment test result: PASSED"
+    # SAS:  "SMART Health Status: OK"
     if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
+        my $status = $1;
+        $status =~ s/^\s+|\s+$//g;
+        $result{health} = $status;
+    } elsif ($out_text =~ /SMART Health Status:\s*(.+)/i) {
         my $status = $1;
         $status =~ s/^\s+|\s+$//g;
         $result{health} = $status;
     }
 
-    # Parse temperature
-    if ($out_text =~ /(?:Temperature_Celsius|Current Drive Temperature).*?(\d+)\s*(?:\(|$)/mi) {
-        $result{temperature} = "${1}°C";
-    } elsif ($out_text =~ /194\s+Temperature_Celsius\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/i) {
-        $result{temperature} = "${1}°C";
+    # Parse temperature (ATA and SAS formats)
+    if ($out_text =~ /194\s+Temperature_Celsius\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/i) {
+        $result{temperature} = "${1} C";
+    } elsif ($out_text =~ /Temperature_Celsius.*?(\d+)\s*(?:\(|$)/mi) {
+        $result{temperature} = "${1} C";
+    } elsif ($out_text =~ /Current Drive Temperature:\s*(\d+)/i) {
+        $result{temperature} = "${1} C";
     }
 
     # Parse power-on hours
@@ -254,8 +291,12 @@ sub get_drive_detail {
     }
     $result{info} = \%info;
 
-    # --- Parse health ---
+    # --- Parse health (ATA and SAS formats) ---
     if ($out_text =~ /SMART (?:overall-)?health self-assessment.*?:\s*(.+)/i) {
+        my $h = $1;
+        $h =~ s/^\s+|\s+$//g;
+        $result{health} = $h;
+    } elsif ($out_text =~ /SMART Health Status:\s*(.+)/i) {
         my $h = $1;
         $h =~ s/^\s+|\s+$//g;
         $result{health} = $h;
@@ -326,6 +367,35 @@ sub get_drive_detail {
 }
 
 # ---------------------------------------------------------------------------
+# Group detected block devices by physical controller (SCSI host).
+# Multiple logical volumes (sda, sdb) on the same controller share the same
+# physical drives — we only need to probe one device per controller.
+# Returns: { host0 => { devices => [sda, sdb], probe_dev => 'sda', model => ... }, ... }
+# ---------------------------------------------------------------------------
+sub group_by_controller {
+    my ($controllers) = @_;
+    my %hosts;
+
+    for my $dev (sort keys %$controllers) {
+        my $block_link = readlink("/sys/block/$dev") // '';
+        my ($host) = $block_link =~ m{/(host\d+)/};
+        $host //= "unknown_$dev";
+
+        if (!$hosts{$host}) {
+            $hosts{$host} = {
+                devices   => [],
+                probe_dev => $dev,
+                model     => $controllers->{$dev}{model},
+                driver    => $controllers->{$dev}{driver},
+            };
+        }
+        push @{$hosts{$host}{devices}}, $dev;
+    }
+
+    return \%hosts;
+}
+
+# ---------------------------------------------------------------------------
 # Main dispatch
 # ---------------------------------------------------------------------------
 my $mode = $ARGV[0] // 'summary';
@@ -337,10 +407,13 @@ if ($mode eq 'controllers') {
 }
 elsif ($mode eq 'drives') {
     my $ctrls = detect_controllers();
+    my $hosts = group_by_controller($ctrls);
     my @all_drives;
-    for my $dev (sort keys %$ctrls) {
-        my $drives = probe_drives($dev);
+    for my $host (sort keys %$hosts) {
+        my $h = $hosts->{$host};
+        my $drives = probe_drives($h->{probe_dev});
         for my $d (@$drives) {
+            $d->{logical_volumes} = $h->{devices};
             my $health = get_drive_health($d->{device}, $d->{cciss_port});
             $d->{$_} = $health->{$_} for keys %$health;
             push @all_drives, $d;
@@ -362,11 +435,14 @@ elsif ($mode eq 'detail') {
 elsif ($mode eq 'summary') {
     my $ctrls = detect_controllers();
     my @ctrl_list = values %$ctrls;
+    my $hosts = group_by_controller($ctrls);
 
     my @all_drives;
-    for my $dev (sort keys %$ctrls) {
-        my $drives = probe_drives($dev);
+    for my $host (sort keys %$hosts) {
+        my $h = $hosts->{$host};
+        my $drives = probe_drives($h->{probe_dev});
         for my $d (@$drives) {
+            $d->{logical_volumes} = $h->{devices};
             my $health = get_drive_health($d->{device}, $d->{cciss_port});
             $d->{$_} = $health->{$_} for keys %$health;
             push @all_drives, $d;

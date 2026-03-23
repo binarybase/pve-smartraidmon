@@ -231,6 +231,11 @@ __PACKAGE__->register_method({
                 power_on_hours => { type => 'string', optional => 1 },
                 grown_defect_list => { type => 'string', optional => 1 },
                 reallocated_sectors => { type => 'string', optional => 1 },
+                pending_sectors     => { type => 'string', optional => 1 },
+                offline_uncorrectable => { type => 'string', optional => 1 },
+                reallocation_events => { type => 'string', optional => 1 },
+                spin_retries        => { type => 'string', optional => 1 },
+                crc_errors          => { type => 'string', optional => 1 },
                 # ssacli fields (present when ssacli is installed)
                 bay            => { type => 'string', optional => 1 },
                 port           => { type => 'string', optional => 1 },

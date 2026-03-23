@@ -1,0 +1,96 @@
+=== cciss,0 ===
+Model Family:     Western Digital Gold
+Device Model:     WDC WD4003FRYZ-01F0DB0
+Serial Number:    V30HAT6F
+LU WWN Device Id: 5 000cca 0d1c6fa09
+capabilities: 			 (0x5b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
+  2 Throughput_Performance  0x0005   132   132   054    Pre-fail  Offline      -       96
+  3 Spin_Up_Time            0x0007   142   142   024    Pre-fail  Always       -       296 (Average 298)
+  5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
+  8 Seek_Time_Performance   0x0005   128   128   020    Pre-fail  Offline      -       18
+ 10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
+=== cciss,1 ===
+Model Family:     Seagate IronWolf Pro
+Device Model:     ST4000NE001-2MA101
+Serial Number:    WS24658E
+LU WWN Device Id: 5 000c50 0f1a5a295
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000f   080   064   044    Pre-fail  Always       -       108416940
+  3 Spin_Up_Time            0x0003   091   091   000    Pre-fail  Always       -       0
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000f   087   060   045    Pre-fail  Always       -       520014347
+ 10 Spin_Retry_Count        0x0013   100   100   097    Pre-fail  Always       -       0
+ 18 Head_Health             0x000b   100   100   050    Pre-fail  Always       -       0
+=== cciss,2 ===
+Model Family:     Western Digital Se
+Device Model:     WDC WD4000F9YZ-09N20L0
+Serial Number:    WD-WMC1F1221275
+LU WWN Device Id: 5 0014ee 003acf41a
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x002f   200   199   051    Pre-fail  Always       -       0
+  3 Spin_Up_Time            0x0027   145   136   021    Pre-fail  Always       -       11725
+  5 Reallocated_Sector_Ct   0x0033   200   200   140    Pre-fail  Always       -       0
+=== cciss,3 ===
+Model Family:     Western Digital Red
+Device Model:     WDC WD40EFRX-68N32N0
+Serial Number:    WD-WCC7K0AHVL8D
+LU WWN Device Id: 5 0014ee 266cba1e3
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x002f   200   200   051    Pre-fail  Always       -       0
+  3 Spin_Up_Time            0x0027   174   167   021    Pre-fail  Always       -       6275
+  5 Reallocated_Sector_Ct   0x0033   200   200   140    Pre-fail  Always       -       0
+=== cciss,4 ===
+Model Family:     Seagate IronWolf Pro
+Device Model:     ST4000NE001-2MA101
+Serial Number:    WS24L6DR
+LU WWN Device Id: 5 000c50 0f1a5a71e
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000f   083   064   044    Pre-fail  Always       -       183512513
+  3 Spin_Up_Time            0x0003   091   091   000    Pre-fail  Always       -       0
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000f   084   060   045    Pre-fail  Always       -       241159405
+ 10 Spin_Retry_Count        0x0013   100   100   097    Pre-fail  Always       -       0
+ 18 Head_Health             0x000b   100   100   050    Pre-fail  Always       -       0
+=== cciss,5 ===
+Model Family:     Seagate IronWolf Pro
+Device Model:     ST4000NE001-2MA101
+Serial Number:    WS24GZY7
+LU WWN Device Id: 5 000c50 0f168f9c0
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000f   082   064   044    Pre-fail  Always       -       143684571
+  3 Spin_Up_Time            0x0003   091   091   000    Pre-fail  Always       -       0
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000f   088   060   045    Pre-fail  Always       -       589268403
+ 10 Spin_Retry_Count        0x0013   100   100   097    Pre-fail  Always       -       0
+ 18 Head_Health             0x000b   100   100   050    Pre-fail  Always       -       0
+=== cciss,6 ===
+Device Model:     ST4000NT001-3M2101
+Serial Number:    WX11PVC9
+LU WWN Device Id: 5 000c50 0fb6b8ce5
+capabilities: 			 (0x7b) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000f   066   064   044    Pre-fail  Always       -       4383192
+  3 Spin_Up_Time            0x0003   094   092   000    Pre-fail  Always       -       0
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000f   083   060   045    Pre-fail  Always       -       191721083
+ 10 Spin_Retry_Count        0x0013   100   100   097    Pre-fail  Always       -       0
+ 18 Unknown_Attribute       0x000b   100   100   050    Pre-fail  Always       -       0
+=== cciss,7 ===
+Model Family:     Silicon Motion based SSDs
+Device Model:     Patriot P210 256GB
+Serial Number:    P210FBBA24112200263
+capabilities: 			 (0x11) SMART execute Offline immediate.
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+161 Valid_Spare_Block_Cnt   0x0033   100   100   050    Pre-fail  Always       -       100
+175 Program_Fail_Count_Chip 0x0032   100   100   050    Old_age   Always       -       0
+176 Erase_Fail_Count_Chip   0x0032   100   100   050    Old_age   Always       -       0
+181 Program_Fail_Cnt_Total  0x0032   100   100   050    Old_age   Always       -       0
+182 Erase_Fail_Count_Total  0x0032   100   100   050    Old_age   Always       -       0

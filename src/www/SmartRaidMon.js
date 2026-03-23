@@ -350,6 +350,8 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     'device', 'cciss_port', 'model', 'serial', 'capacity',
                     'firmware', 'health', 'temperature', 'power_on_hours',
                     'reallocated_sectors', 'grown_defect_list', 'rotation_rate',
+                    'pending_sectors', 'offline_uncorrectable',
+                    'reallocation_events', 'spin_retries', 'crc_errors',
                     // ssacli fields
                     'bay', 'port', 'box', 'array', 'status', 'interface_type',
                     'drive_type', 'controller_model', 'controller_slot',
@@ -460,15 +462,54 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     },
                 },
                 {
-                    text: 'Defects',
+                    text: 'Realloc',
                     dataIndex: 'grown_defect_list',
-                    width: 65,
+                    width: 60,
                     renderer: function (v, meta, rec) {
-                        // Show grown_defect_list for SAS, reallocated_sectors for ATA
                         var val = v || rec.get('reallocated_sectors');
                         if (!val && val !== 0 && val !== '0') return '-';
                         var s = Ext.htmlEncode(String(val));
                         if (parseInt(val, 10) > 0) {
+                            return '<span style="color:orange;font-weight:bold;">' + s + '</span>';
+                        }
+                        return s;
+                    },
+                },
+                {
+                    text: 'Pending',
+                    dataIndex: 'pending_sectors',
+                    width: 60,
+                    renderer: function (v) {
+                        if (!v && v !== 0 && v !== '0') return '-';
+                        var s = Ext.htmlEncode(String(v));
+                        if (parseInt(v, 10) > 0) {
+                            return '<span style="color:red;font-weight:bold;">' + s + '</span>';
+                        }
+                        return s;
+                    },
+                },
+                {
+                    text: 'Offline',
+                    dataIndex: 'offline_uncorrectable',
+                    width: 55,
+                    renderer: function (v) {
+                        if (!v && v !== 0 && v !== '0') return '-';
+                        var s = Ext.htmlEncode(String(v));
+                        if (parseInt(v, 10) > 0) {
+                            return '<span style="color:red;font-weight:bold;">' + s + '</span>';
+                        }
+                        return s;
+                    },
+                },
+                {
+                    text: 'CRC Err',
+                    dataIndex: 'crc_errors',
+                    width: 60,
+                    hidden: true,
+                    renderer: function (v) {
+                        if (!v && v !== 0 && v !== '0') return '-';
+                        var s = Ext.htmlEncode(String(v));
+                        if (parseInt(v, 10) > 0) {
                             return '<span style="color:orange;font-weight:bold;">' + s + '</span>';
                         }
                         return s;

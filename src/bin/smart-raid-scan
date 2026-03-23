@@ -455,6 +455,31 @@ sub probe_drives {
             $info{reallocated_sectors} = $1;
         }
 
+        # Current Pending Sector — sectors waiting to be remapped
+        if ($out_text =~ /Current_Pending_Sector.*?(\d+)\s*$/mi) {
+            $info{pending_sectors} = $1;
+        }
+
+        # Offline Uncorrectable — sectors that failed read
+        if ($out_text =~ /Offline_Uncorrectable.*?(\d+)\s*$/mi) {
+            $info{offline_uncorrectable} = $1;
+        }
+
+        # Reallocated Event Count — number of remap operations
+        if ($out_text =~ /Reallocated_Event_Count.*?(\d+)\s*$/mi) {
+            $info{reallocation_events} = $1;
+        }
+
+        # Spin Retry Count — motor issues
+        if ($out_text =~ /Spin_Retry_Count.*?(\d+)\s*$/mi) {
+            $info{spin_retries} = $1;
+        }
+
+        # UDMA CRC Error Count — cable/connection errors
+        if ($out_text =~ /UDMA_CRC_Error_Count.*?(\d+)\s*$/mi) {
+            $info{crc_errors} = $1;
+        }
+
         # Grown defect list (SAS — equivalent of reallocated sectors)
         if ($out_text =~ /Elements in grown defect list:\s*(\d+)/i) {
             $info{grown_defect_list} = $1;
@@ -625,9 +650,9 @@ sub merge_ssacli_info {
     $ssa->{_matched} = 1;
 
     # Add ssacli-exclusive fields
-    $drive->{bay}              = $ssa->{bay}              if $ssa->{bay};
-    $drive->{port}             = $ssa->{port}             if $ssa->{port};
-    $drive->{box}              = $ssa->{box}              if $ssa->{box};
+    $drive->{bay}              = $ssa->{bay}              if defined $ssa->{bay} && $ssa->{bay} ne '';
+    $drive->{port}             = $ssa->{port}             if defined $ssa->{port} && $ssa->{port} ne '';
+    $drive->{box}              = $ssa->{box}              if defined $ssa->{box} && $ssa->{box} ne '';
     $drive->{array}            = $ssa->{array}            if $ssa->{array};
     $drive->{status}           = $ssa->{status}           if $ssa->{status};
     $drive->{drive_type}       = $ssa->{drive_type}       if $ssa->{drive_type};

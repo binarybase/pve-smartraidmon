@@ -11,7 +11,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "[1/5] Removing API route from PVE::API2::Nodes..."
+echo "[1/7] Removing API route from PVE::API2::Nodes..."
 NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
 if [ -f "$NODES_PM" ]; then
     sed -i '/use PVE::API2::SmartRaidMon;/d' "$NODES_PM"
@@ -56,20 +56,26 @@ CLEANUP_PERL
     echo "       Cleaned."
 fi
 
-echo "[2/5] Removing Perl API module..."
+echo "[2/7] Removing Perl API module..."
 rm -f /usr/share/perl5/PVE/API2/SmartRaidMon.pm
 
-echo "[3/5] Removing smartctl scanner..."
+echo "[3/7] Removing smartctl scanner..."
 rm -rf /usr/libexec/pve-smartraidmon
 
-echo "[4/5] Removing JavaScript GUI..."
+echo "[4/7] Removing JavaScript GUI..."
 rm -f /usr/share/pve-manager/js/SmartRaidMon.js
 
-echo "[5/5] Removing script tag from PVE index..."
+echo "[5/7] Removing script tag from PVE index..."
 INDEX_FILE="/usr/share/pve-manager/index.html.tpl"
 if [ -f "$INDEX_FILE" ]; then
     sed -i '/SmartRaidMon\.js/d' "$INDEX_FILE"
 fi
+
+echo "[6/7] Removing cron job..."
+rm -f /etc/cron.d/pve-smartraidmon
+
+echo "[7/7] Removing cache..."
+rm -rf /var/cache/pve-smartraidmon
 
 echo ""
 echo "Restarting pveproxy..."

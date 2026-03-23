@@ -1,0 +1,525 @@
+Smart Array P840 in Slot 3
+
+
+Warning: Unrecoverable Media Errors Detected on Drives during previous Rebuild 
+or Background Surface Analysis (ARM) scan. Errors will be fixed automatically
+when the sector(s) are overwritten. Backup and Restore are recommended. The
+following logical drives are affected: 2
+
+   Bus Interface: PCI
+   Slot: 3
+   Serial Number: PDNNF0ARH1624M
+   Cache Serial Number: PEYFP0BRH2239M
+   RAID 6 Status: Enabled
+   Controller Status: OK
+   Hardware Revision: B
+   Firmware Version: 7.20
+   Firmware Supports Online Firmware Activation: False
+   Rebuild Priority: High
+   Expand Priority: Low
+   Surface Scan Delay: 3 secs
+   Surface Scan Mode: Idle
+   Parallel Surface Scan Supported: Yes
+   Current Parallel Surface Scan Count: 1
+   Max Parallel Surface Scan Count: 16
+   Queue Depth: Automatic
+   Monitor and Performance Delay: 60  min
+   Elevator Sort: Enabled
+   Degraded Performance Optimization: Enabled
+   Inconsistency Repair Policy: Disabled
+   Wait for Cache Room: Disabled
+   Surface Analysis Inconsistency Notification: Disabled
+   Post Prompt Timeout: 15 secs
+   Cache Board Present: True
+   Cache Status: OK
+   Cache Ratio: 10% Read / 90% Write
+   Drive Write Cache: Disabled
+   Total Cache Size: 4.0
+   Total Cache Memory Available: 3.2
+   Battery Backed Cache Size: 3.2
+   No-Battery Write Cache: Disabled
+   SSD Caching RAID5 WriteBack Enabled: True
+   SSD Caching Version: 2
+   Cache Backup Power Source: Batteries
+   Battery/Capacitor Count: 1
+   Battery/Capacitor Status: OK
+   SATA NCQ Supported: True
+   Spare Activation Mode: Activate on physical drive failure (default)
+   Controller Temperature (C): 52
+   Cache Module Temperature (C): 46
+   Number of Ports: 2 Internal only
+   Encryption: Not Set
+   Express Local Encryption: False
+   Driver Name: hpsa
+   Driver Version: 3.4.20
+   WWN Port: 50014380383A5880
+   Driver Supports SSD Smart Path: True
+   PCI Address (Domain:Bus:Device.Function): 0000:05:00.0
+   Negotiated PCIe Data Rate: PCIe 3.0 x8 (7880 MB/s)
+   Controller Mode: RAID
+   Pending Controller Mode: RAID
+   Port Max Phy Rate Limiting Supported: False
+   Latency Scheduler Setting: Disabled
+   Current Power Mode: Balanced
+   Survival Mode: Enabled
+   Host Serial Number: CZ36145LPX
+   Sanitize Erase Supported: True
+   Primary Boot Volume: logicaldrive 1 (600508B1001CF739D249DEA23C8789F4)
+   Secondary Boot Volume: None
+   SPDM Supports Get Slot Certificate Chain: no
+   SPDM Supports Get Controller Info       : no
+   SPDM Supports Get Slot Info             : no
+   SPDM Supports Set Import Certificate    : no
+   SPDM Supports Set Invalidate Slot       : no
+   Surface Scan Completion Supported: False
+   Persistent Event Log Policy Change Supported: False
+
+
+
+
+   Internal Drive Cage at Port 1I, Box 1, OK
+
+      Drive Bays: 4
+      Port: 1I
+      Box: 1
+      Location: Internal
+
+   Physical Drives
+      physicaldrive 1I:1:5 (port 1I:box 1:bay 5, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:6 (port 1I:box 1:bay 6, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:7 (port 1I:box 1:bay 7, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:8 (port 1I:box 1:bay 8, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:1 (port 1I:box 1:bay 1, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:2 (port 1I:box 1:bay 2, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:3 (port 1I:box 1:bay 3, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:4 (port 1I:box 1:bay 4, SATA HDD, 4 TB, Rebuilding)
+
+
+
+   Internal Drive Cage at Port 1I, Box 1, OK
+
+      Drive Bays: 4
+      Port: 1I
+      Box: 1
+      Location: Internal
+
+   Physical Drives
+      physicaldrive 1I:1:5 (port 1I:box 1:bay 5, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:6 (port 1I:box 1:bay 6, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:7 (port 1I:box 1:bay 7, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:8 (port 1I:box 1:bay 8, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:1 (port 1I:box 1:bay 1, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:2 (port 1I:box 1:bay 2, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:3 (port 1I:box 1:bay 3, SATA HDD, 4 TB, OK)
+      physicaldrive 1I:1:4 (port 1I:box 1:bay 4, SATA HDD, 4 TB, Rebuilding)
+
+
+
+   Internal Drive Cage at Port 2I, Box 0, OK
+
+      Drive Bays: 2
+      Port: 2I
+      Box: 0
+      Location: Internal
+
+   Physical Drives
+      physicaldrive 2I:0:1 (port 2I:box 0:bay 1, SATA SSD, 256 GB, OK)
+      physicaldrive 2I:0:2 (port 2I:box 0:bay 2, SATA SSD, 480 GB, OK)
+
+
+
+   Internal Drive Cage at Port 2I, Box 0, OK
+
+      Drive Bays: 4
+      Port: 2I
+      Box: 0
+      Location: Internal
+
+   Physical Drives
+      physicaldrive 2I:0:1 (port 2I:box 0:bay 1, SATA SSD, 256 GB, OK)
+      physicaldrive 2I:0:2 (port 2I:box 0:bay 2, SATA SSD, 480 GB, OK)
+
+
+   Port Name: 1I
+         Port ID: 0
+         Port Connection Number: 0
+         SAS Address: 50014380383A5880
+         Port Location: Internal
+         Port Phy Count: 8
+
+   Port Name: 2I
+         Port ID: 1
+         Port Connection Number: 1
+         SAS Address: 50014380383A5888
+         Port Location: Internal
+         Port Phy Count: 8
+
+   Array: A
+      Interface Type: Solid State SATA
+      Unused Space: 7 MB (0.00%)
+      Used Space: 476.88 GB (100.00%)
+      Status: OK
+      MultiDomain Status: OK
+      Array Type: Data 
+      Smart Path: enable
+
+
+      Logical Drive: 1
+         Size: 238.44 GB
+         Fault Tolerance: 1
+         Heads: 255
+         Sectors Per Track: 32
+         Cylinders: 61280
+         Strip Size: 256 KB
+         Full Stripe Size: 256 KB
+         Status: OK
+         Unrecoverable Media Errors: None
+         MultiDomain Status: OK
+         Caching:  Disabled
+         Last Surface Scan Completed: False
+         Unique Identifier: 600508B1001CF739D249DEA23C8789F4
+         Disk Name: /dev/sda 
+         Mount Points: 1024 MiB Partition   2 /boot/efi
+         Disk Partition Information
+            Partition   2: Basic, 1024 MiB, /boot/efi
+         Boot Volume: Primary
+         Logical Drive Label: 001CD155PDNNF0ARH1624MDBA6
+         Mirror Group 1:
+            physicaldrive 2I:0:1 (port 2I:box 0:bay 1, SATA SSD, 256 GB, OK)
+         Mirror Group 2:
+            physicaldrive 2I:0:2 (port 2I:box 0:bay 2, SATA SSD, 480 GB, OK)
+         Drive Type: Data
+         LD Acceleration Method: Smart Path
+
+
+      physicaldrive 2I:0:1
+         Port: 2I
+         Box: 0
+         Bay: 1
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: Solid State SATA
+         Size: 256 GB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/512
+         Firmware Revision: U0510A0
+         Serial Number: P210FBBA24112200263
+         WWID: 30014380383A5890
+         Model: ATA     Patriot P210 256
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         SSD Smart Trip Wearout: Not Supported
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: Not Authenticated. Smart Array will not control drive LEDs.
+         Sanitize Erase Supported: False
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 2I:0:2
+         Port: 2I
+         Box: 0
+         Bay: 2
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: Solid State SATA
+         Size: 480 GB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/512
+         Firmware Revision: SCEKJ2.8
+         Serial Number: 50026B7283069433
+         WWID: 30014380383A5891
+         Model: ATA     KINGSTON SEDC500
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 31
+         Maximum Temperature (C): 40
+         SSD Smart Trip Wearout: Not Supported
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: Not Authenticated. Smart Array will not control drive LEDs.
+         Sanitize Erase Supported: False
+         Shingled Magnetic Recording Support: None
+
+
+
+   Array: B
+      Interface Type: SATA
+      Unused Space: 4 MB (0.00%)
+      Used Space: 29.11 TB (100.00%)
+      Status: OK
+      MultiDomain Status: OK
+      Array Type: Data 
+      Smart Path: disable
+
+
+
+
+Warning: Unrecoverable Media Errors Detected on Drives during previous Rebuild 
+or Background Surface Analysis (ARM) scan. Errors will be fixed automatically
+when the sector(s) are overwritten. Backup and Restore are recommended.
+
+      Logical Drive: 2
+         Size: 21.83 TB
+         Fault Tolerance: 6
+         Heads: 255
+         Sectors Per Track: 32
+         Cylinders: 65535
+         Strip Size: 256 KB
+         Full Stripe Size: 1536 KB
+         Status: Recovering, 52.29% complete
+         Unrecoverable Media Errors: Detected
+         MultiDomain Status: OK
+         Caching:  Enabled
+         Parity Initialization Status: Initialization Completed
+         Last Surface Scan Completed: False
+         Unique Identifier: 600508B1001C53FE299408177C4FBF5C
+         Disk Name: /dev/sdb 
+         Mount Points: 21.8 TiB Partition   1 /mnt/pve/storage
+         Disk Partition Information
+            Partition   1: Basic, 21.8 TiB, /mnt/pve/storage
+         Logical Drive Label: 041EA175PDNNF0ARH1624M082B
+         Drive Type: Data
+         LD Acceleration Method: Controller Cache
+
+
+      physicaldrive 1I:1:1
+         Port: 1I
+         Box: 1
+         Bay: 1
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 5400
+         Firmware Revision: 82.00A82
+         Serial Number: WD-WCC7K0AHVL8D
+         WWID: 30014380383A5888
+         Model: ATA     WDC WD40EFRX-68N
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 28
+         Maximum Temperature (C): 50
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: False
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:2
+         Port: 1I
+         Box: 1
+         Bay: 2
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 7200
+         Firmware Revision: EN01
+         Serial Number: WS24L6DR
+         WWID: 30014380383A5889
+         Model: ATA     ST4000NE001-2MA1
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 31
+         Maximum Temperature (C): 40
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: True
+         Unrestricted Sanitize Supported: True
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:3
+         Port: 1I
+         Box: 1
+         Bay: 3
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 7200
+         Firmware Revision: EN01
+         Serial Number: WS24GZY7
+         WWID: 30014380383A588A
+         Model: ATA     ST4000NE001-2MA1
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 32
+         Maximum Temperature (C): 55
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: True
+         Unrestricted Sanitize Supported: True
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:4
+         Port: 1I
+         Box: 1
+         Bay: 4
+         Status: Rebuilding
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 7200
+         Firmware Revision: EN01
+         Serial Number: WX11PVC9
+         WWID: 30014380383A588B
+         Model: ATA     ST4000NT001-3M21
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 31
+         Maximum Temperature (C): 53
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: True
+         Unrestricted Sanitize Supported: True
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:5
+         Port: 1I
+         Box: 1
+         Bay: 5
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 5400
+         Firmware Revision: 82.00A82
+         Serial Number: WD-WCC4E3KZDP1C
+         WWID: 30014380383A5880
+         Model: ATA     WDC WD40EFRX-68W
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 30
+         Maximum Temperature (C): 51
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: False
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:6
+         Port: 1I
+         Box: 1
+         Bay: 6
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 7200
+         Firmware Revision: 01.01H01
+         Serial Number: V30HAT6F
+         WWID: 30014380383A5881
+         Model: ATA     WDC WD4003FRYZ-0
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 30
+         Maximum Temperature (C): 51
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: True
+         Unrestricted Sanitize Supported: True
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:7
+         Port: 1I
+         Box: 1
+         Bay: 7
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 7200
+         Firmware Revision: EN01
+         Serial Number: WS24658E
+         WWID: 30014380383A5882
+         Model: ATA     ST4000NE001-2MA1
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 29
+         Maximum Temperature (C): 54
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: Not Authenticated. Smart Array will not control drive LEDs.
+         Sanitize Erase Supported: True
+         Unrestricted Sanitize Supported: True
+         Shingled Magnetic Recording Support: None
+
+      physicaldrive 1I:1:8
+         Port: 1I
+         Box: 1
+         Bay: 8
+         Status: OK
+         Drive Type: Data Drive
+         Interface Type: SATA
+         Size: 4 TB
+         Drive exposed to OS: False
+         Logical/Physical Block Size: 512/4096
+         Rotational Speed: 7200
+         Firmware Revision: 01.01A01
+         Serial Number: WD-WMC1F1221275
+         WWID: 30014380383A5883
+         Model: ATA     WDC WD4000F9YZ-0
+         SATA NCQ Capable: True
+         SATA NCQ Enabled: True
+         Current Temperature (C): 29
+         Maximum Temperature (C): 69
+         PHY Count: 1
+         PHY Transfer Rate: 6.0Gbps
+         PHY Physical Link Rate: Unknown
+         PHY Maximum Link Rate: Unknown
+         Drive Authentication Status: OK
+         Carrier Application Version: 11
+         Carrier Bootloader Version: 6
+         Sanitize Erase Supported: False
+         Shingled Magnetic Recording Support: None
+
+
+root@ann:~# 

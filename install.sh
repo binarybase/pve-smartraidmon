@@ -31,22 +31,29 @@ if ! command -v smartctl &>/dev/null; then
     apt-get update -qq && apt-get install -y -qq smartmontools
 fi
 
-echo "[1/6] Installing Perl API module..."
+echo "[1/8] Installing Perl API module..."
 install -d /usr/share/perl5/PVE/API2
 install -m 0644 "$SCRIPT_DIR/src/PVE/API2/SmartRaidMon.pm" \
     /usr/share/perl5/PVE/API2/SmartRaidMon.pm
 
-echo "[2/6] Installing smartctl scanner..."
+echo "[2/8] Installing smartctl scanner..."
 install -d /usr/libexec/pve-smartraidmon
 install -m 0755 "$SCRIPT_DIR/src/bin/smart-raid-scan" \
     /usr/libexec/pve-smartraidmon/smart-raid-scan
 
-echo "[3/6] Installing JavaScript GUI..."
+echo "[3/8] Installing JavaScript GUI..."
 install -d /usr/share/pve-manager/js
 install -m 0644 "$SCRIPT_DIR/src/www/SmartRaidMon.js" \
     /usr/share/pve-manager/js/SmartRaidMon.js
 
-echo "[4/6] Registering API endpoint in PVE::API2::Nodes..."
+echo "[4/8] Creating cache directory..."
+install -d /var/cache/pve-smartraidmon
+
+echo "[5/8] Installing cron job..."
+install -m 0644 "$SCRIPT_DIR/src/cron.d/pve-smartraidmon" \
+    /etc/cron.d/pve-smartraidmon
+
+echo "[6/8] Registering API endpoint in PVE::API2::Nodes..."
 NODES_PM="/usr/share/perl5/PVE/API2/Nodes.pm"
 if [ -f "$NODES_PM" ]; then
     # Pre-check: verify SmartRaidMon.pm compiles on its own
@@ -201,7 +208,7 @@ else
     echo "WARNING: $NODES_PM not found — API will not work."
 fi
 
-echo "[5/6] Patching PVE index template..."
+echo "[7/8] Patching PVE index template..."
 INDEX_FILE="/usr/share/pve-manager/index.html.tpl"
 MARKER="SmartRaidMon.js"
 if ! grep -q "$MARKER" "$INDEX_FILE"; then
@@ -211,8 +218,12 @@ else
     echo "       Script tag already present."
 fi
 
-echo "[6/6] Restarting pveproxy..."
+echo "[8/8] Restarting pveproxy..."
 systemctl restart pveproxy
+
+# Populate cache immediately
+echo "Populating initial cache..."
+/usr/libexec/pve-smartraidmon/smart-raid-scan summary > /var/cache/pve-smartraidmon/summary.json.tmp 2>/dev/null && mv /var/cache/pve-smartraidmon/summary.json.tmp /var/cache/pve-smartraidmon/summary.json || true
 
 echo ""
 echo "=== Installation complete ==="

@@ -146,8 +146,16 @@ sub ssacli_get_logical_drives {
             $val =~ s/^\s+|\s+$//g;
             if ($key eq 'Fault Tolerance') { $current_ld->{raid_level} = $val; }
             elsif ($key eq 'Size')         { $current_ld->{size} = $val; }
-            elsif ($key eq 'Status')       { $current_ld->{status} = $val; }
+            elsif ($key eq 'Status') {
+                $current_ld->{status} = $val;
+                if ($val =~ /([\d.]+)%\s*complete/) {
+                    $current_ld->{rebuild_progress} = $1 + 0;
+                }
+            }
             elsif ($key eq 'Disk Name')    { $current_ld->{disk_name} = $val; }
+            elsif ($key eq 'Unrecoverable Media Errors') { $current_ld->{media_errors} = $val; }
+            elsif ($key eq 'Mount Points') { $current_ld->{mount_points} = $val; }
+            elsif ($key eq 'Caching')      { $current_ld->{caching} = $val; }
         }
     }
     push @lds, $current_ld if $current_ld;
@@ -650,7 +658,8 @@ sub ssacli_only_drives {
             device           => $logical_volumes->[0] // 'unknown',
             cciss_port       => -1,     # not reachable via smartctl
             serial           => $serial,
-            health           => ($ssa->{status} && $ssa->{status} ne 'OK') ? 'FAILED' : 'UNKNOWN',
+            health           => ($ssa->{status} && $ssa->{status} =~ /Rebuilding/i) ? 'Rebuilding'
+                              : ($ssa->{status} && $ssa->{status} ne 'OK') ? 'FAILED' : 'UNKNOWN',
             status           => $ssa->{status}           // 'Unknown',
             model            => $ssa->{model}            // '',
             bay              => $ssa->{bay}              // '',

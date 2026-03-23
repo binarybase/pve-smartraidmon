@@ -101,6 +101,13 @@ INSERT_PERL
         if systemctl is-active --quiet pveproxy; then
             systemctl restart pveproxy || true
         fi
+
+        # Ensure cache directory exists and populate initial cache
+        install -d /var/cache/pve-smartraidmon
+        /usr/libexec/pve-smartraidmon/smart-raid-scan summary \
+            > /var/cache/pve-smartraidmon/summary.json.tmp 2>/dev/null \
+            && mv /var/cache/pve-smartraidmon/summary.json.tmp \
+                  /var/cache/pve-smartraidmon/summary.json || true
         ;;
 esac
 

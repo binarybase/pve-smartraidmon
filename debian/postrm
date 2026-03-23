@@ -43,6 +43,10 @@ CLEANUP_PERL
             sed -i '/SmartRaidMon\.js/d' "$INDEX_FILE"
         fi
 
+        # Remove cron job and cache
+        rm -f /etc/cron.d/pve-smartraidmon
+        rm -rf /var/cache/pve-smartraidmon
+
         # Restart pveproxy
         if systemctl is-active --quiet pveproxy; then
             systemctl restart pveproxy || true

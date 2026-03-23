@@ -19,6 +19,14 @@ override_dh_auto_install:
 	install -m 0644 src/www/SmartRaidMon.js \
 		$(CURDIR)/debian/pve-smartraidmon/usr/share/pve-manager/js/SmartRaidMon.js
 
+	# Install cron job
+	install -d $(CURDIR)/debian/pve-smartraidmon/etc/cron.d
+	install -m 0644 src/cron.d/pve-smartraidmon \
+		$(CURDIR)/debian/pve-smartraidmon/etc/cron.d/pve-smartraidmon
+
+	# Create cache directory
+	install -d $(CURDIR)/debian/pve-smartraidmon/var/cache/pve-smartraidmon
+
 override_dh_auto_build:
 	# nothing to build
 

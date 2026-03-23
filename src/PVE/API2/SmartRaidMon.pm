@@ -13,6 +13,8 @@ use JSON;
 use base qw(PVE::RESTHandler);
 
 my $SCAN_SCRIPT = '/usr/libexec/pve-smartraidmon/smart-raid-scan';
+my $CACHE_DIR   = '/var/cache/pve-smartraidmon';
+my $CACHE_TTL   = 600;  # 10 minutes
 
 # Helper: run the scan script and return parsed JSON
 sub run_scan {
@@ -28,6 +30,36 @@ sub run_scan {
     my $data = eval { decode_json($output) };
     die "Failed to parse scan output: $@\n" if $@;
     return $data;
+}
+
+# Helper: read cached scan results, fall back to live scan
+sub run_scan_cached {
+    my ($node, $mode, $force) = @_;
+
+    my $rpcenv = PVE::RPCEnvironment::get();
+    $rpcenv->check($rpcenv->get_user(), "/nodes/$node", ['Sys.Audit']);
+
+    my $cache_file = "$CACHE_DIR/$mode.json";
+
+    if (!$force && -f $cache_file) {
+        my $age = time() - (stat($cache_file))[9];
+        if ($age < $CACHE_TTL) {
+            if (open(my $fh, '<', $cache_file)) {
+                local $/;
+                my $content = <$fh>;
+                close($fh);
+                my $data = eval { decode_json($content) };
+                if ($data) {
+                    $data->{cached} = JSON::true;
+                    $data->{cache_age} = int($age);
+                    return $data;
+                }
+            }
+        }
+    }
+
+    # Fall back to live scan
+    return run_scan($node, $mode);
 }
 
 # Helper: run action command requiring Sys.Modify
@@ -93,6 +125,12 @@ __PACKAGE__->register_method({
         additionalProperties => 0,
         properties => {
             node => get_standard_option('pve-node'),
+            force => {
+                type => 'boolean',
+                optional => 1,
+                default => 0,
+                description => 'Bypass cache and force a live scan.',
+            },
         },
     },
     returns => {
@@ -108,11 +146,27 @@ __PACKAGE__->register_method({
                 items => { type => 'object' },
                 description => 'List of drives with S.M.A.R.T. data.',
             },
+            logical_drives => {
+                type => 'array',
+                items => { type => 'object' },
+                description => 'List of logical drives with RAID and rebuild status.',
+                optional => 1,
+            },
+            cached => {
+                type => 'boolean',
+                optional => 1,
+                description => 'Whether the data was served from cache.',
+            },
+            cache_age => {
+                type => 'integer',
+                optional => 1,
+                description => 'Age of cached data in seconds.',
+            },
         },
     },
     code => sub {
         my ($param) = @_;
-        return run_scan($param->{node}, 'summary');
+        return run_scan_cached($param->{node}, 'summary', $param->{force});
     },
 });
 

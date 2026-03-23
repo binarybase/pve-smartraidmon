@@ -238,7 +238,7 @@ Ext.define('PVE.SmartRaidMon.Panel', {
 
     title: 'Smart Array Monitor',
     iconCls: 'fa fa-hdd-o',
-    layout: 'border',
+    layout: { type: 'vbox', align: 'stretch' },
     bodyPadding: 0,
 
     initComponent: function () {
@@ -247,10 +247,8 @@ Ext.define('PVE.SmartRaidMon.Panel', {
 
         // Controller info panel
         me.controllerGrid = Ext.create('Ext.grid.Panel', {
-            region: 'north',
             title: 'HP Smart Array Controllers',
-            height: 130,
-            split: true,
+            height: 100,
             collapsible: true,
             scrollable: true,
             store: {
@@ -285,10 +283,67 @@ Ext.define('PVE.SmartRaidMon.Panel', {
             emptyText: 'No HP Smart Array controllers detected.',
         });
 
+        // Logical drives panel
+        me.logicalDriveGrid = Ext.create('Ext.grid.Panel', {
+            title: 'Logical Drives',
+            height: 120,
+            collapsible: true,
+            scrollable: true,
+            hidden: true,
+            store: {
+                fields: ['ld_id', 'array', 'raid_level', 'size', 'status',
+                    'disk_name', 'controller_model', 'controller_slot',
+                    'media_errors', 'mount_points', 'caching', 'rebuild_progress'],
+                data: [],
+            },
+            columns: [
+                { text: 'Array', dataIndex: 'array', width: 55, renderer: Ext.htmlEncode },
+                { text: 'LD', dataIndex: 'ld_id', width: 40 },
+                {
+                    text: 'RAID',
+                    dataIndex: 'raid_level',
+                    width: 60,
+                    renderer: function (v) {
+                        return v !== undefined && v !== null ? 'RAID ' + Ext.htmlEncode(String(v)) : '-';
+                    },
+                },
+                { text: 'Size', dataIndex: 'size', width: 90, renderer: Ext.htmlEncode },
+                {
+                    text: 'Status',
+                    dataIndex: 'status',
+                    width: 220,
+                    renderer: function (v) {
+                        if (!v) return '-';
+                        var s = Ext.htmlEncode(v);
+                        if (/^OK$/i.test(v)) {
+                            return '<span style="color:green;">' + s + '</span>';
+                        } else if (/Recover|Rebuild/i.test(v)) {
+                            return '<span style="color:orange;font-weight:bold;">' + s + '</span>';
+                        }
+                        return '<span style="color:red;font-weight:bold;">' + s + '</span>';
+                    },
+                },
+                { text: 'Disk', dataIndex: 'disk_name', width: 80, renderer: Ext.htmlEncode },
+                { text: 'Mount', dataIndex: 'mount_points', flex: 1, renderer: Ext.htmlEncode },
+                {
+                    text: 'Media Errors',
+                    dataIndex: 'media_errors',
+                    width: 110,
+                    renderer: function (v) {
+                        if (!v) return '-';
+                        var s = Ext.htmlEncode(v);
+                        if (/None/i.test(v)) return s;
+                        return '<span style="color:red;font-weight:bold;">' + s + '</span>';
+                    },
+                },
+            ],
+            emptyText: 'No logical drives detected.',
+        });
+
         // Drives grid
         me.driveGrid = Ext.create('Ext.grid.Panel', {
-            region: 'center',
             title: 'Physical Drives (S.M.A.R.T. Overview)',
+            flex: 1,
             scrollable: true,
             store: {
                 fields: [
@@ -364,6 +419,8 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                             return '<span style="color:green;font-weight:bold;">' + s + '</span>';
                         } else if (/FAIL/i.test(v)) {
                             return '<span style="color:red;font-weight:bold;">' + s + '</span>';
+                        } else if (/Rebuild/i.test(v)) {
+                            return '<span style="color:orange;font-weight:bold;">' + s + '</span>';
                         }
                         return '<span style="color:orange;">' + s + '</span>';
                     },
@@ -381,6 +438,8 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                         }
                         if (/^OK$/i.test(v)) {
                             return '<span style="color:green;">' + s + '</span>';
+                        } else if (/Rebuild/i.test(v)) {
+                            return '<span style="color:orange;font-weight:bold;">' + s + '</span>';
                         }
                         return '<span style="color:red;font-weight:bold;">' + s + '</span>';
                     },
@@ -499,7 +558,6 @@ Ext.define('PVE.SmartRaidMon.Panel', {
 
         // Status bar
         me.statusBar = Ext.create('Ext.toolbar.Toolbar', {
-            region: 'south',
             items: [
                 {
                     xtype: 'tbtext',
@@ -511,30 +569,36 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     text: 'Refresh',
                     iconCls: 'fa fa-refresh',
                     handler: function () {
-                        me.loadSummary();
+                        me.loadSummary(true);
                     },
                 },
             ],
         });
 
         Ext.apply(me, {
-            items: [me.controllerGrid, me.driveGrid, me.statusBar],
+            items: [me.controllerGrid, me.logicalDriveGrid, me.driveGrid, me.statusBar],
         });
 
         me.callParent();
         me.loadSummary();
     },
 
-    loadSummary: function () {
+    loadSummary: function (force) {
         var me = this;
         var nodename = me.pveSelNode.data.node;
         var statusText = me.statusBar.getComponent('statusText');
 
         statusText.setText('Scanning controllers and drives...');
 
+        var params = {};
+        if (force) {
+            params.force = 1;
+        }
+
         Proxmox.Utils.API2Request({
             url: '/nodes/' + encodeURIComponent(nodename) + '/smartraidmon/summary',
             method: 'GET',
+            params: params,
             failure: function (response) {
                 statusText.setText(
                     'Error: ' + (response.htmlStatus || 'Failed to load data'),
@@ -546,6 +610,15 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                 // Load controllers
                 if (data.controllers) {
                     me.controllerGrid.getStore().loadData(data.controllers);
+                }
+
+                // Load logical drives
+                if (data.logical_drives && data.logical_drives.length > 0) {
+                    me.logicalDriveGrid.getStore().loadData(data.logical_drives);
+                    me.logicalDriveGrid.setVisible(true);
+                } else {
+                    me.logicalDriveGrid.getStore().removeAll();
+                    me.logicalDriveGrid.setVisible(false);
                 }
 
                 // Load drives
@@ -564,6 +637,7 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     var total = data.drives.length;
                     var healthy = 0;
                     var failed = 0;
+                    var rebuilding = 0;
                     var unknown = 0;
 
                     Ext.Array.each(data.drives, function (d) {
@@ -571,6 +645,8 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                             healthy++;
                         } else if (/FAIL/i.test(d.health) || /FAIL/i.test(d.status)) {
                             failed++;
+                        } else if (/Rebuild/i.test(d.health) || /Rebuild/i.test(d.status)) {
+                            rebuilding++;
                         } else {
                             unknown++;
                         }
@@ -579,12 +655,26 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                     var statusMsg =
                         total + ' drive(s) found — ' +
                         healthy + ' healthy';
+                    if (rebuilding > 0) {
+                        statusMsg += ', <span style="color:orange;font-weight:bold;">' +
+                            rebuilding + ' rebuilding</span>';
+                    }
                     if (failed > 0) {
                         statusMsg += ', <span style="color:red;font-weight:bold;">' +
                             failed + ' FAILED</span>';
                     }
                     if (unknown > 0) {
                         statusMsg += ', ' + unknown + ' unknown';
+                    }
+
+                    // Show rebuild progress from logical drives
+                    if (data.logical_drives) {
+                        Ext.Array.each(data.logical_drives, function (ld) {
+                            if (ld.rebuild_progress !== undefined && ld.rebuild_progress !== null) {
+                                statusMsg += ' | <span style="color:orange;">LD ' +
+                                    ld.ld_id + ' rebuild: ' + ld.rebuild_progress + '%</span>';
+                            }
+                        });
                     }
 
                     // Show controller info from ssacli
@@ -597,6 +687,12 @@ Ext.define('PVE.SmartRaidMon.Panel', {
                                 statusMsg += ' Slot ' + ctrl.controller_slot;
                             }
                         }
+                    }
+
+                    // Show cache info
+                    if (data.cached) {
+                        statusMsg += ' | <span style="color:gray;">cached ' +
+                            data.cache_age + 's ago</span>';
                     }
 
                     statusText.setText(statusMsg);

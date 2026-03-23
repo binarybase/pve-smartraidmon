@@ -29,6 +29,14 @@ install:
 	install -m 0644 src/www/SmartRaidMon.js \
 		$(DESTDIR)$(JS_DIR)/SmartRaidMon.js
 
+	# Cron job
+	install -d $(DESTDIR)/etc/cron.d
+	install -m 0644 src/cron.d/pve-smartraidmon \
+		$(DESTDIR)/etc/cron.d/pve-smartraidmon
+
+	# Cache directory
+	install -d $(DESTDIR)/var/cache/pve-smartraidmon
+
 clean:
 	rm -rf debian/pve-smartraidmon debian/*.debhelper* debian/*.substvars \
 		debian/files debian/*.log
